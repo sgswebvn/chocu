@@ -40,7 +40,6 @@ include __DIR__ . '/../products/linkcss.php';
             <!-- Sidebar Menu -->
             <?php include __DIR__ . '/./layouts/nav.php'; ?>
 
-
             <!-- Nội dung chính -->
             <div class="col-lg-9">
                 <?php if ($error): ?>
@@ -121,13 +120,15 @@ include __DIR__ . '/../products/linkcss.php';
                                             <a href="/orders/<?= htmlspecialchars($order['id']) ?>" class="btn btn-sm text-primary" title="Xem chi tiết">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <?php if ($order['status'] === 'pending'): ?>
+                                            <?php if (in_array($order['status'], ['pending', 'processing'])): ?>
                                                 <a href="/orders/cancel/<?= htmlspecialchars($order['id']) ?>" class="btn btn-sm text-danger js-cancel-order" data-id="<?= htmlspecialchars($order['id']) ?>" title="Hủy đơn hàng">
                                                     <i class="bi bi-x-circle"></i>
                                                 </a>
-                                                <a href="/orders/pay/<?= htmlspecialchars($order['id']) ?>" class="btn btn-sm text-success" title="Thanh toán lại">
-                                                    <i class="bi bi-credit-card"></i>
-                                                </a>
+                                                <?php if ($order['status'] === 'pending'): ?>
+                                                    <a href="/orders/pay/<?= htmlspecialchars($order['id']) ?>" class="btn btn-sm text-success" title="Thanh toán lại">
+                                                        <i class="bi bi-credit-card"></i>
+                                                    </a>
+                                                <?php endif; ?>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
@@ -209,16 +210,20 @@ include __DIR__ . '/../products/linkcss.php';
                             fetch('/orders/cancel/' + orderId, {
                                     method: 'POST',
                                     headers: {
-                                        'X-Requested-With': 'XMLHttpRequest',
-                                        'X-CSRF-TOKEN': '<?= Session::get('csrf_token') ?>'
+                                        'X-Requested-With': 'XMLHttpRequest'
                                     }
                                 })
-                                .then(response => response.json())
+                                .then(response => {
+                                    if (!response.ok) {
+                                        throw new Error('Phản hồi từ server không hợp lệ: ' + response.status);
+                                    }
+                                    return response.json();
+                                })
                                 .then(data => {
                                     Swal.fire({
                                         icon: data.success ? 'success' : 'error',
                                         title: data.success ? 'Thành công' : 'Lỗi',
-                                        text: data.message,
+                                        text: data.message || 'Đã xảy ra lỗi không xác định. Vui lòng thử lại!',
                                         confirmButtonText: 'OK',
                                         confirmButtonColor: data.success ? '#3085d6' : '#d33',
                                         timer: data.success ? 2000 : null,
@@ -230,10 +235,11 @@ include __DIR__ . '/../products/linkcss.php';
                                     });
                                 })
                                 .catch(error => {
+                                    console.error('Fetch error:', error);
                                     Swal.fire({
                                         icon: 'error',
                                         title: 'Lỗi',
-                                        text: 'Đã xảy ra lỗi khi hủy đơn hàng!',
+                                        text: 'Đã xảy ra lỗi khi hủy đơn hàng: ' + error.message,
                                         confirmButtonText: 'OK',
                                         confirmButtonColor: '#d33'
                                     });

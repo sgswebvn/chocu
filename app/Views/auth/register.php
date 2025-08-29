@@ -4,10 +4,8 @@ namespace App\Helpers;
 
 use App\Helpers\Session;
 
-// Bắt đầu session
 Session::start();
 
-// Xử lý thông báo
 $error = Session::get('error');
 $success = Session::get('success');
 if ($error) {
@@ -17,14 +15,12 @@ if ($success) {
     Session::unset('success');
 }
 
-// Bao gồm header
 include __DIR__ . '/../layouts/header.php';
 ?>
 
 <main class="pt-90">
     <div class="mb-4 pb-4"></div>
     <section class="login-register container">
-
         <ul class="nav nav-tabs mb-5" id="login_register_tab" role="tablist">
             <li class="nav-item" role="presentation">
                 <a class="nav-link nav-link_underscore active" id="register-tab" data-bs-toggle="tab" href="#tab-item-register"
@@ -55,6 +51,10 @@ include __DIR__ . '/../layouts/header.php';
                             <span class="text-secondary">Đã có tài khoản?</span>
                             <a href="/login" class="btn-text ms-2">Đăng nhập</a>
                         </div>
+                        <div class="customer-option mt-2 text-center">
+                            <span class="text-secondary">Muốn trở thành đối tác?</span>
+                            <a href="/partner-register" class="btn-text ms-2">Đăng ký làm đối tác</a>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -62,7 +62,6 @@ include __DIR__ . '/../layouts/header.php';
     </section>
 </main>
 
-<!-- Tích hợp SweetAlert2 -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -109,7 +108,6 @@ include __DIR__ . '/../layouts/header.php';
                 });
         });
 
-        // Hiển thị thông báo từ Session
         <?php if ($error): ?>
             Swal.fire({
                 icon: 'error',
@@ -134,6 +132,5 @@ include __DIR__ . '/../layouts/header.php';
 </script>
 
 <?php
-// Bao gồm footer
 include __DIR__ . '/../layouts/footer.php';
 ?>

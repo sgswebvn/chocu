@@ -1,9 +1,11 @@
 <?php
+
 namespace App\Controllers;
 
-use App\Models\ChatModel;
 use App\Helpers\Session;
-use Textalk\WebSocket\Client; // Đảm bảo dòng này có
+use App\Models\ChatModel;
+use App\Models\Product;
+use App\WebSocket\NotificationServer;
 
 class ChatController
 {
@@ -24,6 +26,10 @@ class ChatController
             exit;
         }
 
+        $messages = $this->chatModel->getChats($product_id, $currentUserId, $seller_id);
+        $productModel = new Product();
+        $product = $productModel->find($product_id);
+        $product_name = $product['title'] ?? 'Không rõ tên sản phẩm';
         require_once __DIR__ . '/../Views/chat/chat.php';
     }
 
@@ -44,37 +50,54 @@ class ChatController
     public function save()
     {
         header('Content-Type: application/json');
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $senderId = $_POST['sender_id'] ?? null;
-            $receiverId = $_POST['receiver_id'] ?? null;
-            $productId = $_POST['product_id'] ?? null;
-            $message = trim($_POST['message'] ?? '');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'message' => 'Yêu cầu không hợp lệ']);
+            exit;
+        }
 
-            if ($senderId && $receiverId && $productId && $message) {
-                $result = $this->chatModel->saveChat($senderId, $receiverId, $productId, $message);
-                if ($result['success']) {
-                    $messageData = [
-                        'type' => 'message',
-                        'target_user_id' => $receiverId,
-                        'sender_name' => Session::get('user')['name'] ?? 'Người dùng',
-                        'message' => $message,
-                        'timestamp' => date('Y-m-d H:i:s'),
-                        'link' => "/chat?product_id={$productId}&seller_id={$senderId}"
-                    ];
-                    try {
-                        $client = new Client('ws://localhost:9000'); // Dòng 66
-                        $client->send(json_encode($messageData));
-                        $client->close();
-                    } catch (\Exception $e) {
-                        error_log("Lỗi gửi WebSocket: " . $e->getMessage());
-                    }
+        $senderId = $_POST['sender_id'] ?? null;
+        $receiverId = $_POST['receiver_id'] ?? null;
+        $productId = $_POST['product_id'] ?? null;
+        $message = trim($_POST['message'] ?? '');
+
+        $currentUserId = Session::get('user')['id'] ?? null;
+        if ($senderId != $currentUserId) {
+            echo json_encode(['success' => false, 'message' => 'Sender ID không hợp lệ']);
+            exit;
+        }
+
+        if ($senderId && $receiverId && $productId && $message) {
+            $result = $this->chatModel->saveChat($senderId, $receiverId, $productId, $message);
+            if ($result['success']) {
+                $productModel = new Product();
+                $product = $productModel->find($productId);
+                $sellerId = $product['seller_id'] ?? null;
+
+                if (!$sellerId) {
+                    echo json_encode(['success' => false, 'message' => 'Không tìm thấy người bán cho sản phẩm']);
+                    exit;
                 }
+
+                $messageData = [
+                    'type' => 'chat',
+                    'sender_id' => (int)$senderId,
+                    'receiver_id' => (int)$receiverId,
+                    'product_id' => (int)$productId,
+                    'message' => $message,
+                    'timestamp' => $result['timestamp'],
+                    'sender_role' => ($senderId == $sellerId) ? 'seller' : 'buyer',
+                    'sender_name' => Session::get('user')['username'] ?? 'Người dùng'
+                ];
+
+                NotificationServer::sendChatMessage($senderId, $receiverId, $productId, $message, $messageData);
+
                 echo json_encode($result);
             } else {
-                echo json_encode(['success' => false, 'message' => 'Dữ liệu không hợp lệ']);
+                echo json_encode(['success' => false, 'message' => $result['message']]);
             }
         } else {
-            echo json_encode(['success' => false, 'message' => 'Yêu cầu không hợp lệ']);
+            echo json_encode(['success' => false, 'message' => 'Dữ liệu không hợp lệ']);
         }
+        exit;
     }
 }

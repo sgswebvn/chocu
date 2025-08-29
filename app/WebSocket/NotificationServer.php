@@ -1,72 +1,116 @@
 <?php
+
 namespace App\WebSocket;
 
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
+use App\Models\Notification;
+use App\Models\ChatModel;
 
 class NotificationServer implements MessageComponentInterface
 {
-    private $clients = [];
-    private $users = [];
+    private $clients;
+    private $notificationModel;
+    private $chatModel;
+
+    public function __construct()
+    {
+        $this->clients = new \SplObjectStorage();
+        $this->notificationModel = new Notification();
+        $this->chatModel = new ChatModel();
+    }
 
     public function onOpen(ConnectionInterface $conn)
     {
         $query = $conn->httpRequest->getUri()->getQuery();
         parse_str($query, $params);
-
         $userId = $params['user_id'] ?? 'guest';
-        $productId = $params['product_id'] ?? null;
-        $sellerId = $params['seller_id'] ?? null;
-
-        $this->clients[$conn->resourceId] = $conn;
-        $this->users[$conn->resourceId] = [
-            'user_id' => $userId,
-            'product_id' => $productId,
-            'seller_id' => $sellerId
-        ];
-
+        $conn->userId = $userId;
+        $this->clients->attach($conn);
         echo "New connection! ({$conn->resourceId}) - User ID: $userId\n";
     }
 
     public function onMessage(ConnectionInterface $from, $msg)
     {
         $data = json_decode($msg, true);
-        if (!$data || !isset($data['type'])) {
+        if (!$data) {
+            echo "Invalid message data: " . $msg . "\n";
             return;
         }
 
-        $fromUser = $this->users[$from->resourceId];
-        $userId = $fromUser['user_id'];
-        $productId = $fromUser['product_id'];
-        $sellerId = $fromUser['seller_id'];
+        $timestamp = date('Y-m-d H:i:s');
 
-        foreach ($this->clients as $rid => $client) {
-            if ($client === $from) {
-                continue;
+        if (isset($data['type']) && in_array($data['type'], ['order', 'review', 'report', 'cart', 'favorite', 'product', 'auth'])) {
+            // Kiểm tra thông báo trùng lặp
+            if ($data['type'] === 'order' && isset($data['order_id'])) {
+                $existingNotification = $this->notificationModel->findByOrderId($data['order_id'], $data['target_user_id']);
+                if ($existingNotification) {
+                    echo "Notification for order {$data['order_id']} already exists for user {$data['target_user_id']}\n";
+                    return;
+                }
             }
 
-            $target = $this->users[$rid];
-            $targetUserId = $data['target_user_id'] ?? null;
+            $this->notificationModel->create(
+                $data['target_user_id'],
+                $data['type'],
+                $data['title'] ?? 'Thông báo mới',
+                $data['message'] ?? '',
+                $data['link'] ?? null,
+                $data['order_id'] ?? null
+            );
 
-            if ($data['type'] === 'message' && $target['product_id'] == $productId &&
-                ($target['user_id'] == $sellerId || $target['user_id'] == $targetUserId)) {
-                $client->send(json_encode([
-                    'type' => 'message',
-                    'user_id' => $userId,
-                    'message' => $data['message'],
-                    'timestamp' => $data['timestamp'],
-                    'sender_name' => $data['sender_name'] ?? 'Người dùng',
-                    'link' => $data['link'] ?? '#'
-                ]));
-            } elseif (in_array($data['type'], ['order', 'review', 'report']) && $target['user_id'] == $targetUserId) {
-                $client->send(json_encode($data));
+            foreach ($this->clients as $client) {
+                if ($client->userId == $data['target_user_id']) {
+                    $client->send(json_encode([
+                        'type' => $data['type'],
+                        'order_id' => $data['order_id'] ?? null,
+                        'title' => $data['title'] ?? 'Thông báo mới',
+                        'message' => $data['message'] ?? '',
+                        'status' => $data['status'] ?? null,
+                        'link' => $data['link'] ?? '#',
+                        'timestamp' => $timestamp
+                    ]));
+                    echo "Sent {$data['type']} notification to user {$client->userId}\n";
+                }
             }
+        } elseif (isset($data['sender_id'], $data['receiver_id'], $data['product_id'], $data['message'], $data['type']) && $data['type'] === 'chat') {
+            $sellerId = $this->chatModel->getSellerIdByProductId($data['product_id']);
+            if (!$sellerId) {
+                echo "Invalid seller_id for product {$data['product_id']}\n";
+                return;
+            }
+
+            $result = $this->chatModel->saveChat($data['sender_id'], $data['receiver_id'], $data['product_id'], $data['message']);
+            if (!$result['success']) {
+                echo "Failed to save chat: {$result['message']}\n";
+                return;
+            }
+
+            $messageData = [
+                'type' => 'chat',
+                'sender_id' => $data['sender_id'],
+                'receiver_id' => $data['receiver_id'],
+                'product_id' => $data['product_id'],
+                'message' => $data['message'],
+                'timestamp' => $result['timestamp'],
+                'sender_role' => ($data['sender_id'] == $sellerId) ? 'seller' : 'buyer',
+                'sender_name' => $data['sender_name'] ?? 'Người dùng'
+            ];
+
+            foreach ($this->clients as $client) {
+                if ($client->userId == $data['receiver_id']) {
+                    $client->send(json_encode($messageData));
+                    echo "Sent chat message to user {$client->userId}\n";
+                }
+            }
+        } else {
+            echo "Invalid message format: " . $msg . "\n";
         }
     }
 
     public function onClose(ConnectionInterface $conn)
     {
-        unset($this->clients[$conn->resourceId], $this->users[$conn->resourceId]);
+        $this->clients->detach($conn);
         echo "Connection {$conn->resourceId} disconnected.\n";
     }
 
@@ -78,18 +122,40 @@ class NotificationServer implements MessageComponentInterface
 
     public static function sendNotification($targetUserId, $type, $data)
     {
-        global $notificationServer;
-        if (!isset($notificationServer->clients)) {
+        try {
+            $client = new \WebSocket\Client('ws://localhost:9000', ['timeout' => 5]);
+            $message = json_encode(array_merge([
+                'type' => $type,
+                'target_user_id' => $targetUserId,
+                'timestamp' => date('Y-m-d H:i:s')
+            ], $data));
+            $client->send($message);
+            $client->close();
+            return true;
+        } catch (\Exception $e) {
+            error_log("WebSocket send error: " . $e->getMessage());
             return false;
         }
+    }
 
-        $message = json_encode(array_merge(['type' => $type, 'target_user_id' => $targetUserId], $data));
-        foreach ($notificationServer->clients as $rid => $client) {
-            $clientInfo = $notificationServer->users[$rid] ?? [];
-            if ($clientInfo['user_id'] == $targetUserId) {
-                $client->send($message);
-            }
+    public static function sendChatMessage($senderId, $receiverId, $productId, $message, $data)
+    {
+        try {
+            $client = new \WebSocket\Client('ws://localhost:9000', ['timeout' => 5]);
+            $messageData = array_merge([
+                'type' => 'chat',
+                'sender_id' => $senderId,
+                'receiver_id' => $receiverId,
+                'product_id' => $productId,
+                'message' => $message,
+                'timestamp' => date('Y-m-d H:i:s')
+            ], $data);
+            $client->send(json_encode($messageData));
+            $client->close();
+            return true;
+        } catch (\Exception $e) {
+            error_log("WebSocket send error: " . $e->getMessage());
+            return false;
         }
-        return true;
     }
 }

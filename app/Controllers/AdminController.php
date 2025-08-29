@@ -134,7 +134,26 @@ class AdminController
     public function dashboard()
     {
         $stats = $this->adminModel->getStats();
+        $revenueDay = $this->adminModel->getRevenueByPeriod('day');
+        $revenueMonth = $this->adminModel->getRevenueByPeriod('month');
+        $revenueYear = $this->adminModel->getRevenueByPeriod('year');
+        $topRevenueSellers = $this->adminModel->getSellerComparisons('revenue');
+        $topGrowthSellers = $this->adminModel->getSellerComparisons('growth');
+        $topRatingSellers = $this->adminModel->getSellerComparisons('ratings');
+        $topCancelSellers = $this->adminModel->getSellerComparisons('cancellations');
         require_once __DIR__ . '/../Views/admin/dashboard.php';
+    }
+
+    public function potentialSellers()
+    {
+        $potential = $this->adminModel->detectPotentialSellers();
+        require_once __DIR__ . '/../Views/admin/potential_sellers.php';
+    }
+
+    public function violatingSellers()
+    {
+        $violating = $this->adminModel->detectViolatingSellers();
+        require_once __DIR__ . '/../Views/admin/violating_sellers.php';
     }
 
     public function products()

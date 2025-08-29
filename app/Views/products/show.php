@@ -3,6 +3,8 @@
 namespace App\Helpers;
 
 use App\Helpers\Session;
+use App\Models\User;
+use App\Models\Partners\Review;
 
 // Bắt đầu session
 Session::start();
@@ -10,6 +12,16 @@ Session::start();
 // Xác định đường dẫn dựa trên trạng thái đăng nhập
 $userLink = Session::get('user') ? '/profile' : '/login';
 $currentUserId = Session::get('user')['id'] ?? null;
+
+// Lấy thông tin shop
+$userModel = new User();
+$shop = $userModel->findById($product['user_id']);
+
+// Lấy đánh giá của shop
+$reviewModel = new \App\Models\Partners\Review();
+$reviews = $reviewModel->findByUser($product['user_id']);
+$totalReviews = count($reviews);
+$averageRating = $totalReviews > 0 ? array_sum(array_column($reviews, 'rating')) / $totalReviews : 0;
 
 // Bao gồm header
 include __DIR__ . '/../layouts/header.php';
@@ -23,13 +35,10 @@ include __DIR__ . '/./linkcss.php';
             <div class="row g-4">
                 <!-- Product Images -->
                 <div class="col-lg-6">
-                    <?php if (!empty($product['image'])): ?>
-                        <img src="/Uploads/<?= htmlspecialchars($product['image']) ?>" class="img-fluid rounded-3" alt="<?= htmlspecialchars($product['title']) ?>">
-                    <?php else: ?>
-                        <div class="swiper-slide">
-                            <img src="https://via.placeholder.com/600x600?text=Không+có+hình+ảnh" class="img-fluid rounded-3" alt="No Image">
-                        </div>
-                    <?php endif; ?>
+                    <div class="swiper-slide">
+                        <img src="<?php echo htmlspecialchars($product['image'] ? ($product['is_partner_paid'] == 1 ? '/Uploads/partners/' . $product['image'] : '/Uploads/' . $product['image']) : '/assets/images/default-product.jpg'); ?>"
+                            class="img-fluid rounded-3" alt="<?= htmlspecialchars($product['title']) ?>">
+                    </div>
                 </div>
 
                 <!-- Product Details -->
@@ -40,8 +49,37 @@ include __DIR__ . '/./linkcss.php';
                             <span class="money price fs-2 fw-bold" style="color:#856404"><?= htmlspecialchars(number_format($product['price'], 0, ',', '.')) ?> VND</span>
                         </div>
 
+                        <!-- Shop Info (Shopee-style) -->
+                        <div class="shop-info mb-4 p-3 bg-light rounded-3">
+                            <div class="d-flex align-items-center">
+                                <img src="<?php echo htmlspecialchars($shop['images'] ? ($shop['is_partner_paid'] == 1 ? '/Uploads/partners/' . $shop['images'] : '/Uploads/' . $shop['images']) : '/assets/images/user/avatar-2.jpg') . '?t=' . time(); ?>"
+                                    class="rounded-circle me-3" width="60" height="60" alt="Shop Avatar">
+                                <div>
+                                    <h5 class="fw-bold mb-1">
+                                        <a href="/store/<?= $product['user_id'] ?>" class="text-decoration-none text-primary">
+                                            <?= htmlspecialchars($shop['username'] ?? 'Không xác định') ?>
+                                        </a>
+                                        <?php if ($shop['is_partner_paid'] == 1): ?>
+                                            <span class="badge bg-success ms-2">Shop</span>
+                                        <?php endif; ?>
+                                    </h5>
+                                    <div class="d-flex gap-3">
+                                        <span><strong>Đánh giá:</strong> <?php echo number_format($averageRating, 1); ?>/5 (<?php echo $totalReviews; ?> đánh giá)</span>
+                                        <span><strong>Sản phẩm:</strong> <?php echo $userModel->countAllByUser($product['user_id']); ?></span>
+                                    </div>
+                                    <div class="mt-2">
+                                        <a href="/chat/<?= $product['id'] ?>/<?= $product['user_id'] ?>" class="btn btn-info btn-sm fw-semibold me-2">
+                                            <i class="bi bi-chat-dots me-1"></i> Chat với người bán
+                                        </a>
+                                        <a href="/store/<?= $product['user_id'] ?>" class="btn btn-outline-primary btn-sm fw-semibold">
+                                            <i class="bi bi-shop me-1"></i> Xem gian hàng
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <p class="mb-4 text-muted"><?= htmlspecialchars($product['description'] ?? 'Không có mô tả') ?></p>
-                        <p class="mb-4"><strong>Người bán:</strong> <a href="/seller/<?= htmlspecialchars($product['user_id']) ?>" class="text-decoration-none text-primary"><?= htmlspecialchars($product['username'] ?? 'Không xác định') ?></a></p>
                         <p><strong>Lượt xem:</strong> <?php echo htmlspecialchars($product['views'] ?? 0); ?></p>
 
                         <!-- Actions -->
@@ -58,10 +96,6 @@ include __DIR__ . '/./linkcss.php';
                                     <button class="btn btn-outline-danger btn-md fw-semibold add-to-favorites" data-product-id="<?= $product['id'] ?>">
                                         <i class="bi bi-heart-fill me-1"></i> Yêu thích
                                     </button>
-                                    <a href="/chat/<?= $product['id'] ?>/<?= $product['user_id'] ?>" class="btn btn-info btn-md fw-semibold">
-                                        <i class="bi bi-chat
--dots me-1"></i> Chat với người bán
-                                    </a>
                                     <a href="/reports/create/<?= $product['id'] ?>" class="btn btn-outline-secondary btn-md fw-semibold">
                                         <i class="bi bi-exclamation-circle me-1"></i> Báo cáo người bán
                                     </a>
@@ -77,14 +111,11 @@ include __DIR__ . '/./linkcss.php';
                 </div>
             </div>
 
-            <!-- Tabs for Description, Additional Info, Reviews, and Chat -->
+            <!-- Tabs for Description, Additional Info, Reviews -->
             <div class="mt-5">
                 <ul class="nav nav-tabs border-bottom-0" id="product-tabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <a class="nav-link fw-semibold active" id="description-tab" data-bs-toggle="tab" href="#tab-description" role="tab" aria-controls="tab-description" aria-selected="true">Mô tả</a>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <a class="nav-link fw-semibold" id="reviews-tab" data-bs-toggle="tab" href="#tab-reviews" role="tab" aria-controls="tab-reviews" aria-selected="false">Đánh giá</a>
                     </li>
                 </ul>
                 <div class="tab-content p-4 bg-white shadow-sm rounded-3 mt-2" id="product-tabs-content">
@@ -93,11 +124,7 @@ include __DIR__ . '/./linkcss.php';
                         <h4 class="fw-bold mb-3">Mô tả sản phẩm</h4>
                         <p class="text-muted"><?= htmlspecialchars($product['description'] ?? 'Không có mô tả') ?></p>
                     </div>
-                    <!-- Reviews Tab -->
-                    <div class="tab-pane fade" id="tab-reviews" role="tabpanel" aria-labelledby="reviews-tab">
-                        <h4 class="fw-bold mb-3">Đánh giá sản phẩm</h4>
-                        <p class="text-muted">Chưa có đánh giá nào cho sản phẩm này.</p>
-                    </div>
+
                 </div>
             </div>
         </section>
@@ -117,9 +144,13 @@ include __DIR__ . '/./linkcss.php';
         font-weight: 700;
     }
 
-    .product-rating .stars .star {
-        font-size: 1.2rem;
-        margin-right: 4px;
+    .shop-info {
+        border: 1px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+    .shop-info:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     .product-actions .btn {
@@ -178,13 +209,15 @@ include __DIR__ . '/./linkcss.php';
         .product-details {
             padding: 1rem;
         }
+
+        .shop-info img {
+            width: 40px;
+            height: 40px;
+        }
     }
 </style>
 
-<?php
-// Bao gồm footer
-include __DIR__ . '/../layouts/footer.php';
-?>
+<?php include __DIR__ . '/../layouts/footer.php'; ?>
 
 <script src="/assets/js/plugins/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

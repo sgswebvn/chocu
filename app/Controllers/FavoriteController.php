@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\Favorite;
 use App\Helpers\Session;
+use App\WebSocket\NotificationServer;
 
 class FavoriteController
 {
@@ -47,6 +48,15 @@ class FavoriteController
         $userId = Session::get('user')['id'];
 
         if ($this->favoriteModel->add($userId, $productId)) {
+            NotificationServer::sendNotification(
+                $userId,
+                'favorite',
+                [
+                    'title' => 'Thêm vào yêu thích',
+                    'message' => "Sản phẩm #$productId đã được thêm vào danh sách yêu thích!",
+                    'link' => '/favorites'
+                ]
+            );
             echo json_encode([
                 'success' => true,
                 'message' => 'Sản phẩm đã được thêm vào danh sách yêu thích!'

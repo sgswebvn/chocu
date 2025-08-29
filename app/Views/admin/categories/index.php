@@ -9,139 +9,145 @@
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
     <style>
         body {
-            background-color: #f5f5f5;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            font-family: 'Inter', sans-serif;
+            padding-top: 70px;
         }
 
-        .sidebar {
-            min-height: 100vh;
-            background-color: #343a40;
-            color: #fff;
+        .nav-link {
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        .sidebar a {
-            color: #adb5bd;
-            text-decoration: none;
-            padding: 10px 15px;
-            display: block;
-        }
-
-        .sidebar a:hover {
-            color: #fff;
+        .nav-link:hover {
             background-color: #495057;
-        }
-
-        .sidebar a.active {
-            color: #fff;
-            background-color: #007bff;
+            color: #fff !important;
         }
 
         .card {
             border: none;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.1);
         }
 
         .table {
-            background-color: #fff;
-            border-radius: 10px;
+            border-radius: 12px;
             overflow: hidden;
         }
 
         .table th,
         .table td {
             vertical-align: middle;
+            transition: background-color 0.3s ease;
+            border-bottom: 1px solid #dee2e6;
         }
 
-        .btn-sm {
-            padding: 0.25rem 0.5rem;
+        .table-hover tbody tr:hover {
+            background-color: #e9ecef;
         }
 
-        @media (max-width: 768px) {
-            .sidebar {
-                min-height: auto;
+        .btn {
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .table th {
+            background-color: #f1f3f5;
+            font-weight: 600;
+        }
+
+        @media (max-width: 576px) {
+            .table-responsive {
+                font-size: 0.85rem;
             }
 
-            .table-responsive {
-                font-size: 0.9rem;
+            .btn-sm {
+                font-size: 0.8rem;
             }
         }
     </style>
 </head>
 
 <body>
-    <div class="d-flex">
-        <?php
-        include __DIR__ . '/../layouts/header.php';
-        ?>
-        <div class="flex-grow-1 p-4">
-            <div class="container-fluid">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2>Quản lý danh mục</h2>
-                    <a href="/admin/categories/create" class="btn btn-primary">Thêm danh mục mới</a>
-                </div>
-                <?php if ($success = \App\Helpers\Session::get('success')): ?>
-                    <script>
-                        document.addEventListener('DOMContentLoaded', function() {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Thành công',
-                                text: '<?php echo htmlspecialchars($success); ?>',
-                                confirmButtonText: 'OK'
-                            });
-                        });
-                    </script>
-                    <?php \App\Helpers\Session::unset('success'); ?>
-                <?php endif; ?>
-                <?php if ($error = \App\Helpers\Session::get('error')): ?>
-                    <script>
-                        document.addEventListener('DOMContentLoaded', function() {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Lỗi',
-                                text: '<?php echo htmlspecialchars($error); ?>',
-                                confirmButtonText: 'OK'
-                            });
-                        });
-                    </script>
-                    <?php \App\Helpers\Session::unset('error'); ?>
-                <?php endif; ?>
-                <div class="card">
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
+    <?php include __DIR__ . '/../layouts/header.php'; ?>
+    <main class="container mt-4">
+        <div class="row align-items-center mb-4">
+            <div class="col-auto">
+                <h2 class="fw-bold text-dark">Quản lý danh mục</h2>
+            </div>
+            <div class="col-auto ms-auto">
+                <a href="/admin/categories/create" class="btn btn-primary">Thêm danh mục mới</a>
+            </div>
+        </div>
+        <?php if ($success = \App\Helpers\Session::get('success')): ?>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Thành công',
+                        text: '<?php echo htmlspecialchars($success); ?>',
+                        confirmButtonText: 'OK'
+                    });
+                });
+            </script>
+            <?php \App\Helpers\Session::unset('success'); ?>
+        <?php endif; ?>
+        <?php if ($error = \App\Helpers\Session::get('error')): ?>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Lỗi',
+                        text: '<?php echo htmlspecialchars($error); ?>',
+                        confirmButtonText: 'OK'
+                    });
+                });
+            </script>
+            <?php \App\Helpers\Session::unset('error'); ?>
+        <?php endif; ?>
+        <div class="card">
+            <div class="card-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-hover table-borderless">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Tên danh mục</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($categories)): ?>
+                                <tr>
+                                    <td colspan="3" class="text-center py-4">Không có danh mục nào!</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($categories as $category): ?>
                                     <tr>
-                                        <th scope="col">ID</th>
-                                        <th scope="col">Tên danh mục</th>
-                                        <th scope="col">Thao tác</th>
+                                        <td><?php echo htmlspecialchars($category['id']); ?></td>
+                                        <td><?php echo htmlspecialchars($category['name']); ?></td>
+                                        <td>
+                                            <a href="/admin/categories/edit/<?php echo $category['id']; ?>" class="btn btn-sm btn-warning me-1">Sửa</a>
+                                            <button class="btn btn-sm btn-danger delete-btn" data-id="<?php echo $category['id']; ?>">Xóa</button>
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (empty($categories)): ?>
-                                        <tr>
-                                            <td colspan="3" class="text-center">Không có danh mục nào!</td>
-                                        </tr>
-                                    <?php else: ?>
-                                        <?php foreach ($categories as $category): ?>
-                                            <tr>
-                                                <td><?php echo htmlspecialchars($category['id']); ?></td>
-                                                <td><?php echo htmlspecialchars($category['name']); ?></td>
-                                                <td>
-                                                    <a href="/admin/categories/edit/<?php echo $category['id']; ?>" class="btn btn-sm btn-warning">Sửa</a>
-                                                    <button class="btn btn-sm btn-danger delete-btn" data-id="<?php echo $category['id']; ?>">Xóa</button>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
-    </div>
+    </main>
+    <?php include __DIR__ . '/../layouts/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js" integrity="sha384-0pUGZvbkm6XF6gxjEnlmuGrJXVbNuzT9qBBavbLwCsOGabYfZo0T0to5eqruptLy" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

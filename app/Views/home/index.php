@@ -37,11 +37,18 @@ include __DIR__ . '/../layouts/slide.php';
                 <div class="product-card product-card_style3 mb-3 mb-md-4 mb-xxl-5">
                     <div class="pc__img-wrapper">
                         <a href="/products/<?= $product['id'] ?>">
-                            <img loading="lazy" src="/Uploads/<?= htmlspecialchars($product['image']) ?>" width="330" height="400"
+                            <?php
+                            $imagePath = $product['is_partner_paid'] == 1
+                                ? '/uploads/partners/' . $product['image']
+                                : (!empty($product['image']) ? '/Uploads/' . $product['image'] : '/assets/images/default-product.jpg');
+                            ?>
+                            <img loading="lazy"
+                                src="<?= htmlspecialchars($imagePath) ?>"
+                                width="330" height="400"
                                 alt="<?= htmlspecialchars($product['title']) ?>" class="pc__img">
+
                         </a>
                     </div>
-
                     <div class="pc__info position-relative">
                         <h6 class="pc__title">
                             <a href="/products/<?= $product['id'] ?>"><?= htmlspecialchars($product['title']) ?></a>
@@ -49,11 +56,8 @@ include __DIR__ . '/../layouts/slide.php';
                         <div class="product-card__price d-flex align-items-center">
                             <span class="money price text-secondary">
                                 <?= number_format($product['price'], 0, ',', '.') ?> VNĐ
-
                             </span>
                         </div>
-
-
                     </div>
                 </div>
             </div>
@@ -67,7 +71,7 @@ include __DIR__ . '/../layouts/slide.php';
     <div class="mb-3 mb-xl-5 pt-1 pb-4"></div>
 
     <section class="hot-deals container">
-        <h2 class="section-title text-center mb-3 pb-xl-3 mb-xl-4">Sản được săn đón</h2>
+        <h2 class="section-title text-center mb-3 pb-xl-3 mb-xl-4">Sản phẩm được săn đón</h2>
         <div class="row">
             <div class="col-md-6 col-lg-4 col-xl-20per d-flex align-items-center flex-column justify-content-center py-4 align-items-md-start">
                 <h2>Sản phẩm được săn đón</h2>
@@ -114,11 +118,18 @@ include __DIR__ . '/../layouts/slide.php';
                                 <div class="swiper-slide product-card product-card_style3">
                                     <div class="pc__img-wrapper">
                                         <a href="/products/<?= $product['id'] ?>">
-                                            <img loading="lazy" src="/Uploads/<?= htmlspecialchars($product['image']) ?>" width="258" height="313"
+                                            <?php
+                                            $imagePath = $product['is_partner_paid'] == 1
+                                                ? '/uploads/partners/' . $product['image']
+                                                : (!empty($product['image']) ? '/Uploads/' . $product['image'] : '/assets/images/default-product.jpg');
+                                            ?>
+                                            <img loading="lazy"
+                                                src="<?= htmlspecialchars($imagePath) ?>"
+                                                width="330" height="400"
                                                 alt="<?= htmlspecialchars($product['title']) ?>" class="pc__img">
+
                                         </a>
                                     </div>
-
                                     <div class="pc__info position-relative">
                                         <h6 class="pc__title">
                                             <a href="/products/<?= $product['id'] ?>"><?= htmlspecialchars($product['title']) ?></a>
@@ -150,11 +161,18 @@ include __DIR__ . '/../layouts/slide.php';
                 <div class="product-card product-card_style3 mb-3 mb-md-4 mb-xxl-5">
                     <div class="pc__img-wrapper">
                         <a href="/products/<?= $product['id'] ?>">
-                            <img loading="lazy" src="/Uploads/<?= htmlspecialchars($product['image']) ?>" width="330" height="400"
+                            <?php
+                            $imagePath = $product['is_partner_paid'] == 1
+                                ? '/uploads/partners/' . $product['image']
+                                : (!empty($product['image']) ? '/Uploads/' . $product['image'] : '/assets/images/default-product.jpg');
+                            ?>
+                            <img loading="lazy"
+                                src="<?= htmlspecialchars($imagePath) ?>"
+                                width="330" height="400"
                                 alt="<?= htmlspecialchars($product['title']) ?>" class="pc__img">
+
                         </a>
                     </div>
-
                     <div class="pc__info position-relative">
                         <h6 class="pc__title">
                             <a href="/products/<?= $product['id'] ?>"><?= htmlspecialchars($product['title']) ?></a>
@@ -162,11 +180,8 @@ include __DIR__ . '/../layouts/slide.php';
                         <div class="product-card__price d-flex align-items-center">
                             <span class="money price text-secondary">
                                 <?= number_format($product['price'], 0, ',', '.') ?> VNĐ
-
                             </span>
                         </div>
-
-
                     </div>
                 </div>
             </div>
@@ -177,8 +192,6 @@ include __DIR__ . '/../layouts/slide.php';
         <a class="btn-link btn-link_lg default-underline text-uppercase fw-medium" href="/products">Xem thêm</a>
     </div>
 </section>
-
-
 
 <div class="mb-3 mb-xl-5 pt-1 pb-4"></div>
 

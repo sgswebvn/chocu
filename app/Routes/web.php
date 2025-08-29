@@ -15,15 +15,28 @@ use App\Controllers\ProfileController;
 use App\Controllers\ReportController;
 use App\Controllers\SellerController;
 use App\Controllers\HomeController;
+use App\Models\Notification;
+use App\Controllers\NotificationController;
+use App\Controllers\Partners\PartnersController;
+use App\Controllers\Partners\PMessageController;
+use App\Controllers\Partners\PProductController;
+use App\Controllers\Partners\PReviewController;
+use App\Controllers\Partners\PTransactionController;
+use App\Controllers\Partners\POrderController;
+use App\Controllers\StoreController;
+use App\Controllers\UpgradeController;
 
 // === Trang chính ===
 $router->get('/', [HomeController::class, 'index']);
 
 // === Auth ===
+
 $router->get('/register', [AuthController::class, 'register']);
 $router->post('/register', [AuthController::class, 'register']);
 $router->get('/login', [AuthController::class, 'login']);
 $router->post('/login', [AuthController::class, 'login']);
+$router->get('/google-login', [AuthController::class, 'googleLogin']);
+$router->get('/google-callback', [AuthController::class, 'googleLogin']);
 $router->get('/logout', [AuthController::class, 'logout']);
 $router->get('/forgot-password', [AuthController::class, 'forgotPassword']);
 $router->post('/forgot-password', [AuthController::class, 'forgotPassword']);
@@ -42,6 +55,8 @@ $router->get('/conversations', [ChatController::class, 'GetConversations']);
 $router->get('/profile/orders', [ProfileController::class, 'orders']);
 $router->get('/profile/products', [ProfileController::class, 'products']);
 $router->get('/profile/account-details', [ProfileController::class, 'accountDetails']);
+$router->post('/profile/account-details', [ProfileController::class, 'updateAccountDetails']);
+
 $router->get('/profile/my-orders', [ProfileController::class, 'myOrders']);
 
 // === Sản phẩm ===
@@ -58,10 +73,6 @@ $router->get('/products/{id}', [ProductController::class, 'show']);
 $router->get('/favorites', [FavoriteController::class, 'index']);
 $router->post('/favorites/add', [FavoriteController::class, 'add']);
 $router->post('/favorites/remove/{id}', [FavoriteController::class, 'remove']);
-
-// === Đánh giá ===
-$router->get('/reviews/create/{id}', [ReviewController::class, 'create']);
-$router->post('/reviews/create/{id}', [ReviewController::class, 'create']);
 
 // === Tố cáo (Report) ===
 $router->get('/reports/create/{id}', [ReportController::class, 'create']);
@@ -133,3 +144,87 @@ $router->get('/admin/users/view/{id}', [AdminController::class, 'view_user']);
 
 // Liên hệ
 $router->get('/admin/contacts', [AdminController::class, 'contacts']);
+
+// -- Quản lý thông báo --
+$router->post('/notifications/mark-read', [NotificationController::class, 'markRead']);
+$router->post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead']);
+$router->get('/notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
+
+
+
+
+
+// -- Đối tác --
+
+// Trang chủ
+$router->get('/partners', [PartnersController::class, 'index']);
+$router->get('/partners/dashboard', [PartnersController::class, 'dashboard']);
+
+
+// Quản lý thông tin đối tác
+$router->get('/partners/profile', [PartnersController::class, 'profile']);
+
+// Quản lý đơn hàng
+$router->get('/partners/orders', [POrderController::class, 'index']);
+$router->get('/partners/orders/{id}', [POrderController::class, 'show']);
+$router->post('/partners/orders/update/{id}', [POrderController::class, 'update']);
+
+// Quản lý tin nhắn
+$router->get('/partners/messages', [PartnersController::class, 'messages']);
+$router->get('/partners/messages/{id}', [PartnersController::class, 'messageDetails']);
+// Quản lý báo cáo
+$router->get('/partners/reports', [PartnersController::class, 'reports']);
+
+// Quản lý thông báo
+$router->get('/partners/notifications', [PartnersController::class, 'notifications']);
+// Quản lý đánh giá
+$router->get('/partners/reviews', [PartnersController::class, 'reviews']);
+// Quản lý liên hệ
+$router->get('/partners/contact', [PartnersController::class, 'contact']);
+// Quản lý thanh toán 
+$router->get('/partners/payments', [PartnersController::class, 'payments']);
+
+
+// === Nâng cấp đối tác ===
+$router->get('/upgrade', [UpgradeController::class, 'index']);
+$router->post('/upgrade/process', [UpgradeController::class, 'process']);
+$router->get('/upgrade/success', [UpgradeController::class, 'success']);
+$router->get('/upgrade/cancel', [UpgradeController::class, 'cancel']);
+
+// AUth đối tác
+$router->get('/partner-register', [AuthController::class, 'partnerRegister']);
+$router->post('/partner-register', [AuthController::class, 'partnerRegister']);
+
+
+// Quản lý sản phẩm đối tác
+
+$router->get('/partners/product', [PProductController::class, 'index']);
+$router->get('/partners/product/create', [PProductController::class, 'create']);
+$router->post('/partners/product/store', [PProductController::class, 'store']);
+$router->get('/partners/product/edit/{id}', [PProductController::class, 'edit']);
+$router->post('/partners/product/update/{id}', [PProductController::class, 'update']);
+$router->get('/partners/product/delete/{id}', [PProductController::class, 'delete']);
+
+
+// Quản lý đánh giá đối tác
+$router->get('/partners/review', [PReviewController::class, 'index']);
+$router->post('/partners/review/reply/{id}', [PReviewController::class, 'reply']);
+
+
+// Tin nhắn đối tác
+$router->get('/partners/message', [PMessageController::class, 'index']);
+$router->get('/partners/message/{productId}/{receiverId}', [PMessageController::class, 'view']);
+$router->post('/partners/message/send', [PMessageController::class, 'send']);
+// Quản lý giao dịch đối tác
+$router->get('/partners/transactions', [PTransactionController::class, 'index']);
+
+// Thông tin cá nhân 
+
+$router->get('/partners/profile', [PartnersController::class, 'personalInfo']);
+$router->post('/partners/profile', [PartnersController::class, 'updateProfilePartner']);
+
+
+$router->get('/store/{userId}', [StoreController::class, 'show']);
+$router->post('/store/{shopId}/review', [StoreController::class, 'review']);
+$router->post('/store/{shopId}/user-review', [StoreController::class, 'userReview']);
+$router->post('/store/{shopId}/review/reply/{reviewId}', [StoreController::class, 'replyReview']);

@@ -9,7 +9,7 @@ use App\WebSocket\NotificationServer;
 $server = IoServer::factory(
     new HttpServer(
         new WsServer(
-            $GLOBALS['notificationServer'] = new NotificationServer()
+            new NotificationServer()
         )
     ),
     9000

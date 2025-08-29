@@ -1,4 +1,5 @@
 <?php
+
 use App\Helpers\Session;
 
 Session::start();
@@ -11,7 +12,6 @@ if (!$currentUserId) {
 }
 ?>
 
-<!-- Đặt trong header.php hoặc một file riêng -->
 <div id="notification-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1050;"></div>
 
 <style>
@@ -25,50 +25,84 @@ if (!$currentUserId) {
         transition: all 0.3s ease-in-out;
         opacity: 0;
         transform: translateX(100%);
+        cursor: pointer;
     }
+
     .notification-toast.show {
         opacity: 1;
         transform: translateX(0);
     }
+
     .notification-toast.message {
         background-color: #e7f3ff;
         border-left: 5px solid #007bff;
     }
+
     .notification-toast.order {
         background-color: #e6ffed;
         border-left: 5px solid #28a745;
     }
+
     .notification-toast.review {
         background-color: #fff3e0;
         border-left: 5px solid #ffc107;
     }
+
     .notification-toast.report {
         background-color: #f8d7da;
         border-left: 5px solid #dc3545;
     }
+
+    .notification-toast.cart {
+        background-color: #e6f7ff;
+        border-left: 5px solid #17a2b8;
+    }
+
+    .notification-toast.favorite {
+        background-color: #ffe6f0;
+        border-left: 5px solid #e83e8c;
+    }
+
+    .notification-toast.product {
+        background-color: #f3e7ff;
+        border-left: 5px solid #6f42c1;
+    }
+
+    .notification-toast.auth {
+        background-color: #e7f9e7;
+        border-left: 5px solid #28a745;
+    }
+
     .notification-icon {
         font-size: 1.5rem;
         margin-right: 0.75rem;
+        vertical-align: middle;
     }
+
     .notification-title {
         font-weight: 600;
         font-size: 1rem;
         margin-bottom: 0.25rem;
     }
+
     .notification-body {
         font-size: 0.9rem;
         color: #333;
     }
+
     .notification-close {
         position: absolute;
         top: 10px;
         right: 10px;
         cursor: pointer;
         color: #666;
+        font-size: 1rem;
     }
+
     @media (max-width: 576px) {
         .notification-toast {
             min-width: 90%;
+            max-width: 95%;
         }
     }
 </style>
@@ -77,36 +111,42 @@ if (!$currentUserId) {
 <script>
     $(document).ready(function() {
         const userId = <?php echo json_encode($currentUserId); ?>;
-        let ws = new WebSocket('ws://localhost:9000?user_id=' + userId);
+        if (!userId) return;
 
-        // Sound for notifications
+        let ws = new WebSocket('ws://localhost:9000?user_id=' + userId);
         const notificationSound = new Audio('/assets/sounds/notification.mp3');
 
-        // Function to show notification
         function showNotification(type, title, message, link = '#') {
+            console.log('showNotification called:', {
+                type,
+                title,
+                message,
+                link
+            });
             const toastId = 'toast-' + Date.now();
             const iconMap = {
                 message: 'fas fa-envelope',
                 order: 'fas fa-shopping-cart',
                 review: 'fas fa-star',
-                report: 'fas fa-exclamation-triangle'
+                report: 'fas fa-exclamation-triangle',
+                cart: 'fas fa-cart-plus',
+                favorite: 'fas fa-heart',
+                product: 'fas fa-box',
+                auth: 'fas fa-user'
             };
             const toastHtml = `
-                <div id="${toastId}" class="notification-toast ${type} show">
-                    <i class="${iconMap[type]} notification-icon"></i>
-                    <div>
-                        <div class="notification-title">${title}</div>
-                        <div class="notification-body">${message}</div>
-                    </div>
-                    <i class="fas fa-times notification-close" onclick="$('#${toastId}').remove();"></i>
-                </div>
-            `;
+        <div id="${toastId}" class="notification-toast ${type} show" data-link="${link}">
+            <i class="${iconMap[type] || 'fas fa-bell'} notification-icon"></i>
+            <div>
+                <div class="notification-title">${title}</div>
+                <div class="notification-body">${message}</div>
+            </div>
+            <i class="fas fa-times notification-close" onclick="$('#${toastId}').remove();"></i>
+        </div>
+    `;
             $('#notification-container').append(toastHtml);
-
-            // Play sound
+            console.log('Notification appended to DOM');
             notificationSound.play().catch(err => console.log('Audio error:', err));
-
-            // Auto-remove after 5 seconds
             setTimeout(() => {
                 $(`#${toastId}`).removeClass('show').css('transform', 'translateX(100%)');
                 setTimeout(() => $(`#${toastId}`).remove(), 300);
@@ -119,38 +159,32 @@ if (!$currentUserId) {
 
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
-            let title, message, type;
+            if (!data.type || !data.title || !data.message) return;
 
-            switch (data.type) {
-                case 'message':
-                    title = 'Tin nhắn mới';
-                    message = `Bạn nhận được tin nhắn từ ${data.sender_name}: "${data.message}"`;
-                    type = 'message';
-                    break;
-                case 'order':
-                    title = 'Cập nhật đơn hàng';
-                    message = `Đơn hàng #${data.order_id} đã được cập nhật trạng thái: ${data.status}`;
-                    type = 'order';
-                    break;
-                case 'review':
-                    title = 'Đánh giá mới';
-                    message = `Sản phẩm "${data.product_name}" nhận được đánh giá ${data.rating} sao từ ${data.reviewer_name}.`;
-                    type = 'review';
-                    break;
-                case 'report':
-                    title = 'Báo cáo mới';
-                    message = `Sản phẩm "${data.product_name}" bị báo cáo bởi ${data.reporter_name}: "${data.reason}"`;
-                    type = 'report';
-                    break;
-                default:
-                    return;
-            }
-
-            showNotification(type, title, message, data.link || '#');
+            showNotification(data.type, data.title, data.message, data.link);
+            // Cập nhật danh sách thông báo trong header.php
+            const notifyItem = `
+                <div class="notify-item unread" data-id="${data.id || Date.now()}">
+                    <a href="${data.link || '#'}">
+                        <div class="notification-title">${data.title}</div>
+                        <div class="notification-body">${data.message}</div>
+                        <div class="notification-time">${data.timestamp}</div>
+                    </a>
+                </div>
+            `;
+            $('#notify-list').prepend(notifyItem);
+            $.get('/notifications/unread-count', function(response) {
+                if (response.success) {
+                    $('#notify-count').text(response.count);
+                }
+            });
         };
 
         ws.onclose = function() {
-            console.log('WebSocket connection closed');
+            console.log('WebSocket closed, reconnecting...');
+            setTimeout(() => {
+                ws = new WebSocket('ws://localhost:9000?user_id=' + userId);
+            }, 5000);
         };
 
         ws.onerror = function(error) {
@@ -158,7 +192,10 @@ if (!$currentUserId) {
         };
 
         $('#notification-container').on('click', '.notification-toast', function() {
-            window.location.href = $(this).data('link') || '#';
+            const link = $(this).data('link');
+            if (link && link !== '#') {
+                window.location.href = link;
+            }
         });
     });
 </script>

@@ -16,7 +16,14 @@ class Category
     public function getAll()
     {
         try {
-            $stmt = $this->db->query("SELECT * FROM categories ORDER BY name ASC");
+            $stmt = $this->db->prepare("
+                SELECT c.id, c.name, COUNT(p.id) as product_count
+                FROM categories c
+                LEFT JOIN products p ON c.id = p.category_id AND p.status = 'approved'
+                GROUP BY c.id, c.name
+                ORDER BY c.name ASC
+            ");
+            $stmt->execute();
             return $stmt->fetchAll(\PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
             throw new \Exception("Lỗi khi lấy danh sách danh mục: " . $e->getMessage());

@@ -6,12 +6,15 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Helpers\Session;
 use App\Config\Database;
+use App\WebSocket\NotificationServer;
+use App\Models\Notification;
 use PayOS\PayOS;
 
 class CheckoutController
 {
     private $cartModel;
     private $orderModel;
+    private $notificationModel;
     private $db;
     private $payOS;
 
@@ -19,6 +22,7 @@ class CheckoutController
     {
         $this->cartModel = new Cart();
         $this->orderModel = new Order();
+        $this->notificationModel = new Notification();
         $this->db = (new Database())->getConnection();
 
         $config = require __DIR__ . '/../config/payos.php';
@@ -130,15 +134,19 @@ class CheckoutController
             if ($paymentMethod === 'cod') {
                 $this->orderModel->updateStatus($orderId, 'pending');
                 $this->createTransaction($orderId, $totalPrice, 'cod', 'pending', null);
+                $this->sendOrderNotification($userId, $orderId, 'Đặt hàng thành công', "Đơn hàng #$orderId đã được đặt thành công!", "/order/confirmation/$orderId");
+                $this->sendOrderNotification($sellerId, $orderId, 'Đơn hàng mới', "Bạn có đơn hàng mới #$orderId từ người mua!", "/partners/orders/$orderId");
             } else {
                 $paymentLink = $this->createPayOSPaymentLink($orderId, $totalPrice, $productName, $details);
                 if ($paymentLink) {
                     $this->orderModel->updateStatus($orderId, 'pending_payment');
                     $this->createTransaction($orderId, $totalPrice, 'payos', 'pending', $paymentLink['paymentLinkId'], $paymentLink['orderCode']);
+                    $this->sendOrderNotification($userId, $orderId, 'Đang chờ thanh toán', "Đơn hàng #$orderId đang chờ thanh toán!", "/order/confirmation/$orderId");
+                    $this->sendOrderNotification($sellerId, $orderId, 'Đơn hàng mới', "Bạn có đơn hàng mới #$orderId (chờ thanh toán)!", "/partners/orders/$orderId");
                     header('Location: ' . $paymentLink['checkoutUrl']);
                     exit;
                 } else {
-                    Session::set('error', 'Không thể tạo link thanh toán payOS!');
+                    Session::set('error', 'Không thể tạo link thanh toán PayOS!');
                     header('Location: /checkout');
                     exit;
                 }
@@ -150,6 +158,15 @@ class CheckoutController
             Session::set('success', 'Đặt hàng thành công! Đơn hàng sẽ được giao sớm.');
             header('Location: /order/confirmation/' . end($orderIds));
             exit;
+        }
+    }
+
+    private function sendOrderNotification($userId, $orderId, $title, $message, $link)
+    {
+        // Kiểm tra xem thông báo đã tồn tại chưa
+        $existingNotification = $this->notificationModel->findByOrderId($orderId, $userId);
+        if (!$existingNotification) {
+            $this->notificationModel->create($userId, 'order', $title, $message, $link);
         }
     }
 
@@ -189,7 +206,7 @@ class CheckoutController
                         'price' => (int)$amount
                     ]
                 ],
-                'cancelUrl' => 'http://localhost:8080/checkout/cancel', // Thay bằng URL ngrok
+                'cancelUrl' => 'http://localhost:8080/checkout/cancel',
                 'returnUrl' => 'http://localhost:8080/checkout/success',
                 'expiredAt' => time() + 24 * 60 * 60
             ];
@@ -228,16 +245,26 @@ class CheckoutController
             exit;
         }
 
+        $order = $this->orderModel->getOrderById($orderId);
+        if (!$order) {
+            Session::set('error', 'Đơn hàng không tồn tại!');
+            header('Location: /checkout');
+            exit;
+        }
+
         try {
             $paymentInfo = $this->payOS->getPaymentLinkInformation($orderCode);
             if ($paymentInfo['status'] === 'PAID') {
                 $this->orderModel->updatePaymentStatus($orderId, 'completed', $paymentInfo['paymentLinkId']);
                 $this->orderModel->updateStatus($orderId, 'confirmed');
                 $this->createTransaction($orderId, $paymentInfo['amount'], 'payos', 'completed', $paymentInfo['paymentLinkId'], $orderCode);
+                $this->sendOrderNotification($order['buyer_id'], $orderId, 'Thanh toán thành công', "Đơn hàng #$orderId đã được thanh toán thành công!", "/order/confirmation/$orderId");
+                $this->sendOrderNotification($order['seller_id'], $orderId, 'Đơn hàng đã thanh toán', "Đơn hàng #$orderId đã được thanh toán!", "/partners/orders/$orderId");
                 Session::set('success', 'Thanh toán thành công!');
             } else {
                 $this->orderModel->updatePaymentStatus($orderId, 'failed', $paymentInfo['paymentLinkId']);
                 $this->orderModel->updateStatus($orderId, 'cancelled');
+                $this->sendOrderNotification($order['buyer_id'], $orderId, 'Thanh toán thất bại', "Đơn hàng #$orderId đã bị hủy do thanh toán thất bại!", "/order/confirmation/$orderId");
                 Session::set('error', 'Thanh toán thất bại hoặc bị hủy!');
             }
         } catch (\Exception $e) {
@@ -268,6 +295,7 @@ class CheckoutController
             $this->orderModel->updatePaymentStatus($orderId, 'cancelled', null);
             $this->orderModel->updateStatus($orderId, 'cancelled');
             $this->createTransaction($orderId, 0, 'payos', 'cancelled', null, $orderCode);
+            $this->sendOrderNotification($orderId['buyer_id'], $orderId, 'Thanh toán bị hủy', "Đơn hàng #$orderId đã bị hủy!", "/order/confirmation/$orderId");
         }
 
         Session::set('error', 'Thanh toán đã bị hủy!');
@@ -296,10 +324,13 @@ class CheckoutController
                         $this->orderModel->updatePaymentStatus($orderId, 'completed', $paymentInfo['paymentLinkId']);
                         $this->orderModel->updateStatus($orderId, 'confirmed');
                         $this->createTransaction($orderId, $paymentInfo['amount'], 'payos', 'completed', $paymentInfo['paymentLinkId'], $orderCode);
+                        $this->sendOrderNotification($order['buyer_id'], $orderId, 'Thanh toán thành công', "Đơn hàng #$orderId đã được thanh toán thành công!", "/order/confirmation/$orderId");
+                        $this->sendOrderNotification($order['seller_id'], $orderId, 'Đơn hàng đã thanh toán', "Đơn hàng #$orderId đã được thanh toán!", "/partners/orders/$orderId");
                         Session::set('success', 'Thanh toán đã được xác nhận!');
                     } elseif ($paymentInfo['status'] === 'CANCELLED' || $paymentInfo['status'] === 'DECLINED') {
                         $this->orderModel->updatePaymentStatus($orderId, 'cancelled', $paymentInfo['paymentLinkId']);
                         $this->orderModel->updateStatus($orderId, 'cancelled');
+                        $this->sendOrderNotification($order['buyer_id'], $orderId, 'Thanh toán bị hủy', "Đơn hàng #$orderId đã bị hủy!", "/order/confirmation/$orderId");
                         Session::set('error', 'Thanh toán đã bị hủy hoặc thất bại!');
                     }
                 } catch (\Exception $e) {
@@ -364,10 +395,12 @@ class CheckoutController
                 $this->orderModel->updatePaymentStatus($orderId, 'pending', $paymentLink['paymentLinkId']);
                 $this->orderModel->updateStatus($orderId, 'pending_payment');
                 $this->createTransaction($orderId, $order['total_amount'], 'payos', 'pending', $paymentLink['paymentLinkId'], $paymentLink['orderCode']);
+                $this->sendOrderNotification($order['buyer_id'], $orderId, 'Đang chờ thanh toán', "Đơn hàng #$orderId đang chờ thanh toán!", "/order/confirmation/$orderId");
+                $this->sendOrderNotification($order['seller_id'], $orderId, 'Đơn hàng đang chờ thanh toán', "Đơn hàng #$orderId đang chờ thanh toán!", "/partners/orders/$orderId");
                 header('Location: ' . $paymentLink['checkoutUrl']);
                 exit;
             } else {
-                Session::set('error', 'Không thể tạo link thanh toán payOS!');
+                Session::set('error', 'Không thể tạo link thanh toán PayOS!');
                 header('Location: /profile/my-orders');
                 exit;
             }
@@ -375,6 +408,8 @@ class CheckoutController
             $this->orderModel->updatePaymentStatus($orderId, 'pending', null);
             $this->orderModel->updateStatus($orderId, 'pending');
             $this->createTransaction($orderId, $order['total_amount'], 'cod', 'pending', null);
+            $this->sendOrderNotification($order['buyer_id'], $orderId, 'Đặt hàng thành công', "Đơn hàng #$orderId đã được đặt lại thành công!", "/order/confirmation/$orderId");
+            $this->sendOrderNotification($order['seller_id'], $orderId, 'Đơn hàng mới', "Đơn hàng #$orderId đã được đặt lại!", "/partners/orders/$orderId");
             Session::set('success', 'Đơn hàng đã được đặt lại thành công!');
             header('Location: /order/confirmation/' . $orderId);
             exit;

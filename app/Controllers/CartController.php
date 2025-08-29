@@ -4,6 +4,8 @@ namespace App\Controllers;
 
 use App\Models\Cart;
 use App\Helpers\Session;
+use App\Models\Product;
+use App\WebSocket\NotificationServer;
 
 class CartController
 {
@@ -45,20 +47,29 @@ class CartController
             return;
         }
 
+        $productModel = new \App\Models\Product();
+        $product = $productModel->find($productId);
+        $title = $product['title'] ?? 'Sản phẩm';
+
         $userId = Session::get('user')['id'];
 
         if ($this->cartModel->add($userId, $productId, $quantity)) {
+            NotificationServer::sendNotification(
+                $userId,
+                'cart',
+                [
+                    'title' => 'Thêm vào giỏ hàng',
+                    'message' => "$title đã được thêm vào giỏ hàng!",
+                    'link' => '/cart'
+                ]
+            );
             echo json_encode([
                 'success' => true,
                 'message' => 'Sản phẩm đã được thêm vào giỏ hàng!'
             ]);
-        } else {
-            echo json_encode([
-                'success' => false,
-                'message' => 'Không thể thêm sản phẩm vào giỏ hàng!'
-            ]);
         }
     }
+
 
 
     public function index()

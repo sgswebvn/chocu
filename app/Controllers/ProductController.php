@@ -5,39 +5,38 @@ namespace App\Controllers;
 use App\Models\Product;
 use App\Models\Category;
 use App\Helpers\Session;
+use App\Models\Notification;
+use App\WebSocket\NotificationServer;
 
 class ProductController
 {
     private $productModel;
     private $categoryModel;
+    private $notificationModel;
+    private $db;
 
     public function __construct()
     {
         $this->productModel = new Product();
         $this->categoryModel = new Category();
+        $this->notificationModel = new Notification();
+        $this->db = (new \App\Config\Database())->getConnection();
     }
 
     public function index()
     {
-        $filter = $_GET['sort'] ?? 'latest';
         $keyword = $_GET['keyword'] ?? '';
         $sort = $_GET['sort'] ?? 'latest';
-        $page = max((int) ($_GET['page'] ?? 1), 1);
-
+        $categoryId = $_GET['category_id'] ?? '';
+        $page = max(1, (int)($_GET['page'] ?? 1));
         $limit = 12;
         $offset = ($page - 1) * $limit;
 
-        // Lấy sản phẩm + tổng số
-        $products = $this->productModel->getAll($sort, $keyword, $limit, $offset);
-        $totalProducts = $this->productModel->countAll($keyword);
+        $products = $this->productModel->getAll($sort, $keyword, $limit, $offset, $categoryId);
+        $totalProducts = $this->productModel->countAll($keyword, $categoryId);
         $totalPages = ceil($totalProducts / $limit);
 
-
-        if (!in_array($filter, ['latest', 'featured', 'popular'])) {
-            $filter = 'latest';
-        }
-
-        $products = $this->productModel->getAll($filter, $keyword);
+        $categories = $this->categoryModel->getAll();
 
         require_once __DIR__ . '/../Views/products/index.php';
     }
@@ -99,8 +98,44 @@ class ProductController
             }
 
             if ($this->productModel->create($userId, $seller_id, $title, $description, $price, $image, $categoryId)) {
+                // Thông báo cho người dùng
+                NotificationServer::sendNotification(
+                    $userId,
+                    'product',
+                    [
+                        'title' => 'Đăng sản phẩm',
+                        'message' => "Sản phẩm \"$title\" đã được đăng và đang chờ duyệt!",
+                        'link' => '/profile/products'
+                    ]
+                );
+
+                // Lấy ID admin
+                $stmt = $this->db->prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+                $stmt->execute();
+                $admin = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+                if ($admin) {
+                    $adminId = $admin['id'];
+                    $this->notificationModel->create(
+                        $adminId,
+                        'product',
+                        'Sản phẩm mới chờ duyệt',
+                        "Sản phẩm \"$title\" từ người dùng ID $userId đang chờ duyệt.",
+                        '/admin/products'
+                    );
+                    NotificationServer::sendNotification(
+                        $adminId,
+                        'product',
+                        [
+                            'title' => 'Sản phẩm mới chờ duyệt',
+                            'message' => "Sản phẩm \"$title\" từ người dùng ID $userId đang chờ duyệt.",
+                            'link' => '/admin/products'
+                        ]
+                    );
+                }
+
                 Session::set('success', 'Đăng sản phẩm thành công! Đang chờ duyệt.');
-                header('Location: /profile/products');
+                header('Location: /products/create');
                 exit;
             } else {
                 Session::set('error', 'Đăng sản phẩm thất bại!');
@@ -153,9 +188,16 @@ class ProductController
 
             $image = $this->handleImageUpload() ?? $product['image'];
             if ($this->productModel->update($id, $title, $description, $price, $image, $categoryId)) {
+                NotificationServer::sendNotification(
+                    Session::get('user')['id'],
+                    'product',
+                    [
+                        'title' => 'Chỉnh sửa sản phẩm',
+                        'message' => "Sản phẩm \"$title\" đã được chỉnh sửa và đang chờ duyệt!",
+                        'link' => '/profile/products'
+                    ]
+                );
                 Session::set('success', 'Chỉnh sửa thành công! Đang chờ duyệt.');
-                header('Location: /profile/products');
-                exit;
             } else {
                 Session::set('error', 'Chỉnh sửa thất bại!');
             }
@@ -187,7 +229,7 @@ class ProductController
     private function handleImageUpload()
     {
         if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-            $targetDir = __DIR__ . '/../../public/Uploads/';
+            $targetDir = __DIR__ . '/../../public/uploads/partners/';
             $fileName = uniqid() . '_' . basename($_FILES['image']['name']);
             $targetFile = $targetDir . $fileName;
             if (move_uploaded_file($_FILES['image']['tmp_name'], $targetFile)) {

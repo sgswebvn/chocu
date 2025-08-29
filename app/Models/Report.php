@@ -41,4 +41,27 @@ class Report
         $stmt->execute([$userId]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
+    public function getReportRateBySellerId($sellerId)
+    {
+        try {
+            // Tổng số báo cáo
+            $reportStmt = $this->db->prepare("SELECT COUNT(*) as report_count FROM reports WHERE reported_user_id = ?");
+            $reportStmt->execute([$sellerId]);
+            $reportCount = $reportStmt->fetch(\PDO::FETCH_ASSOC)['report_count'] ?? 0;
+
+            // Tổng số đơn hàng của seller (giả sử qua Order.php)
+            $orderModel = new Order();
+            $orders = $orderModel->getOrdersBySellerId($sellerId);
+            $totalOrders = count($orders);
+
+            if ($totalOrders == 0) {
+                return 0;
+            }
+
+            return round(($reportCount / $totalOrders) * 100, 2);
+        } catch (\PDOException $e) {
+            error_log("Error calculating report rate for seller ID: $sellerId - " . $e->getMessage());
+            return 0;
+        }
+    }
 }

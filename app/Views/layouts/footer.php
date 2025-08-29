@@ -50,14 +50,6 @@
             </div>
         </div>
     </footer>
-    <script>
-        // Placeholder for cart or quick view JavaScript
-        document.querySelectorAll('.add-to-cart').forEach(button => {
-            button.addEventListener('click', () => {
-                Swal.fire('Thêm vào giỏ hàng thành công', '', 'success');
-            });
-        });
-    </script>
     <script src="assets/js/plugins/jquery.min.js"></script>
     <script src="assets/js/plugins/bootstrap.bundle.min.js"></script>
     <script src="assets/js/plugins/bootstrap-slider.min.js"></script>

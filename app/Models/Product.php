@@ -13,18 +13,24 @@ class Product
         $this->db = (new Database())->getConnection();
     }
 
-    public function getAll($filter = 'latest', $keyword = '', $limit = 12, $offset = 0)
+    public function getAll($filter = 'latest', $keyword = '', $limit = 12, $offset = 0, $categoryId = '')
     {
-        $sql = "SELECT p.*, u.username, c.name as category_name 
-            FROM products p 
-            LEFT JOIN users u ON p.user_id = u.id 
-            LEFT JOIN categories c ON p.category_id = c.id 
-            WHERE p.status = 'approved'";
+        $sql = "SELECT p.*, u.username, u.is_partner_paid, c.name as category_name 
+                FROM products p 
+                LEFT JOIN users u ON p.user_id = u.id 
+                LEFT JOIN categories c ON p.category_id = c.id 
+                WHERE p.status = 'approved'";
+
         $params = [];
 
         if (!empty($keyword)) {
             $sql .= " AND (p.title LIKE :keyword OR p.description LIKE :keyword)";
             $params[':keyword'] = '%' . $keyword . '%';
+        }
+
+        if (!empty($categoryId)) {
+            $sql .= " AND p.category_id = :category_id";
+            $params[':category_id'] = $categoryId;
         }
 
         if ($filter === 'featured') {
@@ -47,6 +53,7 @@ class Product
         $stmt->execute();
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
+
     public function countAll($keyword = '')
     {
         $sql = "SELECT COUNT(*) as total FROM products WHERE status = 'approved'";
@@ -63,11 +70,11 @@ class Product
         return $result['total'] ?? 0;
     }
 
-
     public function getProductById($id)
     {
-        $stmt = $this->db->prepare("SELECT p.*, c.name as category_name 
+        $stmt = $this->db->prepare("SELECT p.*, u.username, u.is_partner_paid, c.name as category_name 
                                     FROM products p 
+                                    LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
                                     WHERE p.id = ?");
         $stmt->execute([$id]);
@@ -76,7 +83,7 @@ class Product
 
     public function getByUser($userId)
     {
-        $stmt = $this->db->prepare("SELECT p.*, u.username, c.name as category_name 
+        $stmt = $this->db->prepare("SELECT p.*, u.username, u.is_partner_paid, c.name as category_name 
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
@@ -88,7 +95,18 @@ class Product
 
     public function find($id)
     {
-        $stmt = $this->db->prepare("SELECT p.*, u.username, c.name as category_name 
+        $stmt = $this->db->prepare("SELECT p.*, u.username, u.is_partner_paid, c.name as category_name 
+                                    FROM products p 
+                                    LEFT JOIN users u ON p.user_id = u.id 
+                                    LEFT JOIN categories c ON p.category_id = c.id 
+                                    WHERE p.id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch(\PDO::FETCH_ASSOC);
+    }
+
+    public function find2($id)
+    {
+        $stmt = $this->db->prepare("SELECT p.*, u.username, u.is_partner_paid, c.name as category_name 
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
@@ -100,7 +118,7 @@ class Product
     public function search($keyword)
     {
         $keyword = "%$keyword%";
-        $stmt = $this->db->prepare("SELECT p.*, u.username, c.name as category_name 
+        $stmt = $this->db->prepare("SELECT p.*, u.username, u.is_partner_paid, c.name as category_name 
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
@@ -119,10 +137,13 @@ class Product
 
     public function getHotDeals()
     {
-        $stmt = $this->db->query("SELECT p.*, c.name as category_name 
-                                  FROM products p 
-                                  LEFT JOIN categories c ON p.category_id = c.id 
-                                  WHERE p.status = 'approved'");
+        $stmt = $this->db->prepare("SELECT p.*, u.username, u.is_partner_paid, c.name as category_name 
+                                    FROM products p 
+                                    LEFT JOIN users u ON p.user_id = u.id 
+                                    LEFT JOIN categories c ON p.category_id = c.id 
+                                    WHERE p.status = 'approved' 
+                                    ORDER BY p.views DESC LIMIT 8");
+        $stmt->execute();
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
@@ -151,23 +172,12 @@ class Product
 
     public function getProductsByUserId($userId)
     {
-        $stmt = $this->db->prepare("SELECT p.*, c.name as category_name 
+        $stmt = $this->db->prepare("SELECT p.*, u.username, u.is_partner_paid, c.name as category_name 
                                     FROM products p 
+                                    LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
                                     WHERE p.user_id = ?");
         $stmt->execute([$userId]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
-    }
-    public function find2($id)
-    {
-        $stmt = $this->db->prepare("
-            SELECT p.*, u.username, c.name as category_name 
-            FROM products p 
-            LEFT JOIN users u ON p.user_id = u.id 
-            LEFT JOIN categories c ON p.category_id = c.id 
-            WHERE p.id = ?
-        ");
-        $stmt->execute([$id]);
-        return $stmt->fetch(\PDO::FETCH_ASSOC);
     }
 }

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Controllers;
 
 use App\Models\Order;
@@ -49,7 +50,6 @@ class OrderController
             $carrier = $_POST['carrier'] ?? null;
             if ($this->orderModel->updateStatus($id, $status, $trackingNumber, $carrier)) {
                 Session::set('success', 'Cập nhật đơn hàng thành công!');
-                // Gửi thông báo cho người mua
                 NotificationServer::sendNotification(
                     $order['buyer_id'],
                     'order',
@@ -71,15 +71,24 @@ class OrderController
 
     public function cancel($id)
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['_token'] === Session::get('csrf_token')) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!isset($_SERVER['HTTP_REFERER']) || !str_contains($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST'])) {
+                $response = ['success' => false, 'message' => 'Nguồn yêu cầu không hợp lệ!'];
+                error_log("OrderController: Invalid request source for order ID: $id, user ID: " . (Session::get('user')['id'] ?? 'unknown'));
+                header('Content-Type: application/json');
+                echo json_encode($response);
+                exit;
+            }
+
             $order = $this->orderModel->getOrderById($id);
             if (!$order || $order['buyer_id'] !== Session::get('user')['id']) {
                 $response = ['success' => false, 'message' => 'Đơn hàng không tồn tại hoặc bạn không có quyền hủy!'];
-            } elseif ($order['status'] !== 'pending') {
-                $response = ['success' => false, 'message' => 'Chỉ có thể hủy đơn hàng ở trạng thái chờ xử lý!'];
+                error_log("OrderController: Cancel failed - Invalid order or user for order ID: $id, user ID: " . (Session::get('user')['id'] ?? 'unknown'));
+            } elseif (!in_array($order['status'], ['pending', 'processing'])) {
+                $response = ['success' => false, 'message' => 'Chỉ có thể hủy đơn hàng ở trạng thái Chờ xử lý hoặc Đang xử lý!'];
+                error_log("OrderController: Cancel failed - Invalid status for order ID: $id, status: {$order['status']}");
             } elseif ($this->orderModel->updateStatus($id, 'cancelled')) {
                 $response = ['success' => true, 'message' => 'Hủy đơn hàng thành công!'];
-                // Gửi thông báo cho người bán
                 NotificationServer::sendNotification(
                     $order['seller_id'],
                     'order',
@@ -90,14 +99,17 @@ class OrderController
                         'link' => "/profile/orders/{$id}"
                     ]
                 );
+                error_log("OrderController: Order cancelled successfully for order ID: $id, user ID: " . Session::get('user')['id']);
             } else {
                 $response = ['success' => false, 'message' => 'Hủy đơn hàng thất bại!'];
+                error_log("OrderController: Cancel failed for order ID: $id, user ID: " . Session::get('user')['id']);
             }
             header('Content-Type: application/json');
             echo json_encode($response);
             exit;
         }
         Session::set('error', 'Yêu cầu không hợp lệ!');
+        error_log("OrderController: Invalid request method for cancel order ID: $id");
         header('Location: /profile/my-orders');
         exit;
     }

@@ -3,10 +3,24 @@
 namespace App\Helpers;
 
 use App\Helpers\Session;
+use App\Models\Notification;
 
 Session::start();
 
-$userLink = Session::get('user') ? '/profile' : '/login';
+$user = Session::get('user');
+
+if (!$user) {
+  $userLink = '/login';
+} elseif (!empty($user['is_partner_paid'])) {
+  $userLink = '/partners';
+} else {
+  $userLink = '/profile';
+}
+
+$currentUserId = Session::get('user')['id'] ?? null;
+$notificationModel = new Notification();
+$notifications = $currentUserId ? $notificationModel->getByUser($currentUserId) : [];
+$unreadCount = $currentUserId ? $notificationModel->getUnreadCount($currentUserId) : 0;
 ?>
 
 <?php ob_start(); ?>
@@ -36,8 +50,8 @@ $userLink = Session::get('user') ? '/profile' : '/login';
 <body class="gradient-bg">
   <svg class="d-none">
     <symbol id="icon_bell" viewBox="0 0 18 18">
-  <path d="M9 0C4.03 0 0 4.03 0 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16.5c-.83 0-1.5-.67-1.5-1.5h3c0 .83-.67 1.5-1.5 1.5zm3-4.5H6v-1.5l1-1v-3c0-1.65 1.35-3 3-3h1v-1h1.5v1h1c1.65 0 3 1.35 3 3v3l1 1v1.5z" fill="currentColor"/>
-</symbol>
+      <path d="M9 0C4.03 0 0 4.03 0 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16.5c-.83 0-1.5-.67-1.5-1.5h3c0 .83-.67 1.5-1.5 1.5zm3-4.5H6v-1.5l1-1v-3c0-1.65 1.35-3 3-3h1v-1h1.5v1h1c1.65 0 3 1.35 3 3v3l1 1v1.5z" fill="currentColor" />
+    </symbol>
     <symbol id="icon_nav" viewBox="0 0 25 18">
       <rect width="25" height="2" />
       <rect y="8" width="20" height="2" />
@@ -269,70 +283,170 @@ $userLink = Session::get('user') ? '/profile' : '/login';
     .logo__image {
       max-width: 220px;
     }
+
+    .notify {
+      position: relative;
+    }
+
+    .header-tool_icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      cursor: pointer;
+    }
+
+    .header-tool_count {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      background-color: #ff4d4f;
+      color: white;
+      border-radius: 50%;
+      font-size: 10px;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+    }
+
+    .notify-popup {
+      display: none;
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      width: 350px;
+      max-height: 500px;
+      overflow-y: auto;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1050;
+      /* Tăng z-index */
+    }
+
+    .notify-popup.active {
+      display: block;
+    }
+
+    .notify-popup_header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .notify-popup_header span {
+      font-weight: 600;
+    }
+
+    .notify-popup_header a {
+      color: #007bff;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+
+    .notify-item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+
+    .notify-item.unread {
+      background-color: #f5faff;
+      font-weight: 500;
+    }
+
+    .notify-item:last-child {
+      border-bottom: none;
+    }
+
+    .notification-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .notification-body {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 4px;
+    }
+
+    .notification-time {
+      font-size: 12px;
+      color: #999;
+    }
+
+    #notification-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1060;
+      /* Cao hơn notify-popup */
+      max-width: 350px;
+    }
+
+    .notification-toast {
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      padding: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      opacity: 0;
+      transform: translateX(100%);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .notification-toast.show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .notification-icon {
+      margin-right: 10px;
+      font-size: 20px;
+    }
+
+    .notification-close {
+      margin-left: auto;
+      cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+      .notify-popup {
+        width: 90%;
+        max-width: 300px;
+        right: 10px;
+      }
+
+      #notification-container {
+        right: 10px;
+        width: 90%;
+        max-width: 300px;
+      }
+    }
   </style>
- <!-- Header mobile -->
-<div class="header-mobile header_sticky">
-  <div class="container d-flex align-items-center h-100">
-    <!-- ... Các phần khác ... -->
-    <a href="#" class="header-tools__item header-tools__cart js-open-aside" data-aside="cartDrawer">
-      <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <use href="#icon_cart" />
-      </svg>
-      <span class="cart-amount d-block position-absolute js-cart-items-count">3</span>
-    </a>
-    <div class="header-tool notify">
-      <a class="header-tool_icon notify-toggle" href="javascript:void(0)">
-        <svg class="icon"><use xlink:href="#icon_bell"></use></svg>
-        <span class="header-tool_count notify-count">0</span>
+
+  </style>
+  <!-- Header mobile -->
+  <div class="header-mobile header_sticky">
+    <div class="container d-flex align-items-center h-100">
+      <a href="/cart" class="header-tools__item header-tools__cart js-open-aside" data-aside="cartDrawer">
+        <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <use href="#icon_cart" />
+        </svg>
+        <span class="cart-amount d-block position-absolute js-cart-items-count">3</span>
       </a>
-      <div class="notify-popup">
-        <div class="notify-popup_header">
-          <h3>Thông báo</h3>
-          <a href="javascript:void(0)" class="notify-close"><svg class="icon"><use xlink:href="#icon_close"></use></svg></a>
-        </div>
-        <div class="notify-popup_body notify-list"></div>
-      </div>
-    </div>
-  </div>
-  <!-- ... Phần còn lại của header-mobile ... -->
-</div>
 
-<!-- Header desktop -->
-<header id="header" class="header header-fullwidth header-transparent-bg">
-  <div class="container">
-    <div class="header-desk header-desk_type_1">
-      <!-- ... Logo và navigation ... -->
-      <div class="header-tools d-flex align-items-center">
-        <!-- ... Tìm kiếm và user ... -->
-        <a href="favorites" class="header-tools__item">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <use href="#icon_heart" />
-          </svg>
-        </a>
-        <div class="header-tools__item notify">
-          <a class="header-tool_icon notify-toggle" href="javascript:void(0)">
-            <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <use href="#icon_bell" />
-            </svg>
-            <span class="header-tool_count notify-count">0</span>
-          </a>
-          <div class="notify-popup">
-            <div class="notify-popup_header">
-              <h3>Thông báo</h3>
-              <a href="javascript:void(0)" class="notify-close">
-                <svg class="d-block" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <use href="#icon_close" />
-                </svg>
-              </a>
-            </div>
-            <div class="notify-popup_body notify-list"></div>
-          </div>
-        </div>
-      </div>
     </div>
+    <!-- ... Phần còn lại của header-mobile ... -->
   </div>
-</header>
-
 
   <header id="header" class="header header-fullwidth header-transparent-bg">
     <div class="container">
@@ -364,8 +478,7 @@ $userLink = Session::get('user') ? '/profile' : '/login';
           <div class="header-tools__item hover-container">
             <div class="js-hover__open position-relative">
               <a class="js-search-popup search-field__actor" href="#">
-                <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none"
-                  xmlns="http://www.w3.org/2000/svg">
+                <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <use href="#icon_search" />
                 </svg>
                 <i class="btn-icon btn-close-lg"></i>
@@ -376,125 +489,225 @@ $userLink = Session::get('user') ? '/profile' : '/login';
               <form action="#" method="GET" class="search-field container">
                 <p class="text-uppercase text-secondary fw-medium mb-4">Bạn muốn tìm gì ?</p>
                 <div class="position-relative">
-                  <input class="search-field__input search-popup__input w-100 fw-medium" type="text"
-                    name="search-keyword" placeholder="Tìm kiếm sản phẩm" />
+                  <input class="search-field__input search-popup__input w-100 fw-medium" type="text" name="search-keyword" placeholder="Tìm kiếm sản phẩm" />
                   <button class="btn-icon search-popup__submit" type="submit">
-                    <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none"
-                      xmlns="http://www.w3.org/2000/svg">
+                    <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <use href="#icon_search" />
                     </svg>
                   </button>
                   <button class="btn-icon btn-close-lg search-popup__reset" type="reset"></button>
                 </div>
-
-
               </form>
             </div>
           </div>
 
           <div class="header-tools__item hover-container">
-            <a href="<?php echo htmlspecialchars($userLink); ?> " class="header-tools__item">
-              <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none"
-                xmlns="http://www.w3.org/2000/svg">
+            <a href="<?php echo htmlspecialchars($userLink); ?>" class="header-tools__item">
+              <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <use href="#icon_user" />
               </svg>
             </a>
           </div>
 
-          <a href="favorites" class="header-tools__item">
+          <a href="/favorites" class="header-tools__item">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
               <use href="#icon_heart" />
             </svg>
           </a>
-          <div class="header-tools__item notify">
-  <a class="header-tool_icon" href="javascript:void(0)" id="notify-toggle">
-    <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <use href="#icon_bell" />
-    </svg>
-    <span class="header-tool_count" id="notify-count">0</span>
-  </a>
-  <div class="notify-popup" id="notify-popup">
-    <div class="notify-popup_header">
-      <h3>Thông báo</h3>
-      <a href="javascript:void(0)" id="notify-close">
-        <svg class="d-block" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <use href="#icon_close" />
-        </svg>
-      </a>
-    </div>
-    <div class="notify-popup_body" id="notify-list"></div>
-  </div>
-</div>
+
+          <div class="header-tools__item notify position-relative">
+            <a class="header-tool_icon notify-toggle" href="javascript:void(0)" id="notify-toggle">
+              <i class="fa fa-bell" aria-hidden="true"></i>
+              <span class="header-tool_count" id="notify-count"><?php echo $unreadCount; ?></span>
+            </a>
+            <div class="notify-popup" id="notify-popup">
+              <div class="notify-popup_header">
+                <span>Thông báo</span>
+                <a href="javascript:void(0)" id="notify-mark-all-read">Đánh dấu tất cả đã đọc</a>
+                <a href="javascript:void(0)" id="notify-close">
+                  <i class="fa fa-times" aria-hidden="true"></i>
+                </a>
+              </div>
+              <div class="notify-popup_body" id="notify-list">
+                <?php if (empty($notifications)): ?>
+                  <div class="notify-item">Không có thông báo nào!</div>
+                <?php else: ?>
+                  <?php foreach ($notifications as $notification): ?>
+                    <div class="notify-item <?php echo $notification['is_read'] ? '' : 'unread'; ?>" data-id="<?php echo $notification['id']; ?>">
+                      <a href="<?php echo htmlspecialchars($notification['link'] ?? '#'); ?>">
+                        <div class="notification-title"><?php echo htmlspecialchars($notification['title']); ?></div>
+                        <div class="notification-body"><?php echo htmlspecialchars($notification['message']); ?></div>
+                        <div class="notification-time"><?php echo $notification['created_at']; ?></div>
+                      </a>
+                    </div>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+    </div>
   </header>
 
+  <div id="notification-container"></div>
+
   <main>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
     <script>
-      // Danh sách thông báo mẫu
-const notifications = [
-  { id: 1, message: "Đơn hàng #123 đã được giao thành công!", read: false },
-  { id: 2, message: "Sản phẩm mới vừa được thêm vào cửa hàng.", read: true },
-  { id: 3, message: "Ưu đãi 20% cho đơn hàng tiếp theo!", read: false },
-];
+      $(document).ready(function() {
+        // Toggle popup
+        $('#notify-toggle').on('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation(); // Ngăn chặn sự kiện click lan ra ngoài
+          $('#notify-popup').toggleClass('active');
+          if ($('#notify-popup').hasClass('active')) {
+            $('.notify-item.unread').each(function() {
+              const id = $(this).data('id');
+              $.post('/notifications/mark-read', {
+                id: id
+              }, function(response) {
+                if (response.success) {
+                  $(`.notify-item[data-id="${id}"]`).removeClass('unread');
+                  updateNotificationCount();
+                }
+              }).fail(function() {
+                console.error('Lỗi khi đánh dấu thông báo đã đọc');
+              });
+            });
+          }
+        });
+        $('.notify-item').on('click', function(e) {
+          const link = $(this).find('a').attr('href');
+          console.log('Clicked notification with link:', link);
+          if (link === '#' || !link) {
+            e.preventDefault();
+            console.warn('Link không hợp lệ hoặc không được cung cấp');
+          }
+        });
+        // Đánh dấu tất cả đã đọc
+        $('#notify-mark-all-read').on('click', function(e) {
+          e.preventDefault();
+          $.post('/notifications/mark-all-read', {}, function(response) {
+            if (response.success) {
+              $('.notify-item').removeClass('unread');
+              updateNotificationCount();
+            }
+          }).fail(function() {
+            console.error('Lỗi khi đánh dấu tất cả thông báo đã đọc');
+          });
+        });
 
-// Cập nhật số lượng thông báo chưa đọc
-function updateNotificationCount() {
-  const unreadCount = notifications.filter(n => !n.read).length;
-  const notifyCounts = document.querySelectorAll('#notify-count');
-  notifyCounts.forEach(count => {
-    count.textContent = unreadCount;
-  });
-}
+        // Đóng popup
+        $('#notify-close').on('click', function(e) {
+          e.preventDefault();
+          $('#notify-popup').removeClass('active');
+        });
 
-// Hiển thị danh sách thông báo
-function renderNotifications(popup) {
-  const notifyList = popup.querySelector('#notify-list');
-  notifyList.innerHTML = '';
-  notifications.forEach(notification => {
-    const notifyItem = document.createElement('div');
-    notifyItem.className = `notify-item ${notification.read ? '' : 'unread'}`;
-    notifyItem.innerHTML = `<p>${notification.message}</p>`;
-    notifyList.appendChild(notifyItem);
-  });
-}
+        // Đóng popup khi nhấp ra ngoài
+        $(document).on('click', function(e) {
+          if (!$(e.target).closest('.notify').length && !$(e.target).closest('#notify-popup').length) {
+            $('#notify-popup').removeClass('active');
+          }
+        });
 
-// Toggle popup thông báo
-document.querySelectorAll('#notify-toggle').forEach(toggle => {
-  toggle.addEventListener('click', (e) => {
-    e.preventDefault();
-    const popup = toggle.closest('.notify').querySelector('#notify-popup');
-    popup.classList.toggle('active');
-    if (popup.classList.contains('active')) {
-      renderNotifications(popup);
-    }
-  });
-});
+        // Cập nhật số lượng thông báo chưa đọc
+        function updateNotificationCount() {
+          $.get('/notifications/unread-count', function(response) {
+            if (response.success) {
+              $('#notify-count').text(response.count);
+              if (response.count == 0) {
+                $('#notify-count').hide();
+              } else {
+                $('#notify-count').show();
+              }
+            }
+          }).fail(function() {
+            console.error('Lỗi khi lấy số lượng thông báo chưa đọc');
+          });
+        }
 
-// Đóng popup khi nhấp vào nút đóng
-document.querySelectorAll('#notify-close').forEach(close => {
-  close.addEventListener('click', () => {
-    close.closest('#notify-popup').classList.remove('active');
-  });
-});
+        // WebSocket để nhận thông báo mới
+        const userId = <?php echo json_encode($currentUserId); ?>;
+        if (userId) {
+          let ws = new WebSocket('ws://localhost:9000?user_id=' + userId);
+          const notificationSound = new Audio('/assets/sounds/notification.mp3');
 
-// Đóng popup khi nhấp ra ngoài
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.notify') && !e.target.closest('#notify-popup')) {
-    document.querySelectorAll('#notify-popup').forEach(popup => {
-      popup.classList.remove('active');
-    });
-  }
-});
+          ws.onopen = function() {
+            console.log('WebSocket kết nối thành công');
+          };
 
-// Khởi tạo
-updateNotificationCount();
+          ws.onmessage = function(event) {
+            try {
+              const data = JSON.parse(event.data);
+              console.log('Nhận thông báo:', data); // Debug dữ liệu
+              if (!data || !data.type || !data.title || !data.message) {
+                console.error('Dữ liệu thông báo không hợp lệ:', data);
+                return;
+              }
+
+              // Thêm thông báo toast
+              const toastId = 'toast-' + Date.now();
+              const iconMap = {
+                message: 'fas fa-envelope',
+                order: 'fas fa-shopping-cart',
+                review: 'fas fa-star',
+                report: 'fas fa-exclamation-triangle',
+                cart: 'fas fa-cart-plus',
+                favorite: 'fas fa-heart',
+                product: 'fas fa-box',
+                auth: 'fas fa-user'
+              };
+              const iconClass = iconMap[data.type] || 'fas fa-bell';
+              const toastHtml = `
+                <div id="${toastId}" class="notification-toast ${data.type} show">
+                  <i class="${iconClass} notification-icon"></i>
+                  <div>
+                    <div class="notification-title">${data.title}</div>
+                    <div class="notification-body">${data.message}</div>
+                  </div>
+                  <i class="fas fa-times notification-close" onclick="$('#${toastId}').remove();"></i>
+                </div>
+              `;
+              $('#notification-container').append(toastHtml);
+              notificationSound.play().catch(err => console.error('Audio error:', err));
+              setTimeout(() => {
+                $(`#${toastId}`).removeClass('show').css('transform', 'translateX(100%)');
+                setTimeout(() => $(`#${toastId}`).remove(), 300);
+              }, 5000);
+
+              // Cập nhật danh sách thông báo trong popup
+              const notifyItem = `
+                <div class="notify-item unread" data-id="${data.id || ''}">
+                  <a href="${data.link || '#'}">
+                    <div class="notification-title">${data.title}</div>
+                    <div class="notification-body">${data.message}</div>
+                    <div class="notification-time">${data.timestamp || new Date().toLocaleString()}</div>
+                  </a>
+                </div>
+              `;
+              $('#notify-list').prepend(notifyItem);
+              updateNotificationCount();
+            } catch (e) {
+              console.error('Lỗi xử lý thông báo WebSocket:', e);
+            }
+          };
+
+          ws.onerror = function(error) {
+            console.error('Lỗi WebSocket:', error);
+          };
+
+          ws.onclose = function() {
+            console.log('WebSocket đóng kết nối');
+          };
+        }
+      });
     </script>
-    <script src="assets/js/plugins/jquery.min.js"></script>
     <script src="assets/js/plugins/bootstrap.bundle.min.js"></script>
     <script src="assets/js/plugins/bootstrap-slider.min.js"></script>
     <script src="assets/js/plugins/swiper.min.js"></script>
     <script src="assets/js/plugins/countdown.js"></script>
     <script src="assets/js/theme.js"></script>
+    <script src="assets/js/app.js"></script>
 </body>

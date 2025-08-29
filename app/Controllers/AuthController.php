@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Helpers\Session;
 use App\Models\Order;
 use App\Models\Product;
+use App\WebSocket\NotificationServer;
+use Google_Client;
 
 class AuthController
 {
@@ -31,7 +33,16 @@ class AuthController
             if (empty($username) || empty($email) || empty($password)) {
                 $response = ['success' => false, 'message' => 'Vui lòng điền đầy đủ các trường!'];
             } elseif ($this->userModel->registerUser($username, $email, $password, $is_active)) {
-
+                $user = $this->userModel->findByEmail($email);
+                NotificationServer::sendNotification(
+                    $user['id'],
+                    'auth',
+                    [
+                        'title' => 'Chào mừng bạn',
+                        'message' => "Chào mừng bạn đến với Chợ C2C, $username!",
+                        'link' => '/profile'
+                    ]
+                );
                 $response = ['success' => true, 'message' => 'Đăng ký thành công!', 'redirect' => '/login'];
             } else {
                 $response = ['success' => false, 'message' => 'Đăng ký thất bại! Email hoặc tên người dùng đã tồn tại.'];
@@ -53,6 +64,49 @@ class AuthController
         require_once __DIR__ . '/../Views/auth/register.php';
     }
 
+    public function partnerRegister()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $username = $_POST['username'] ?? '';
+            $email = $_POST['email'] ?? '';
+            $password = $_POST['password'] ?? '';
+            $is_active = 0;
+            $role = 'partners';
+
+            if (empty($username) || empty($email) || empty($password)) {
+                $response = ['success' => false, 'message' => 'Vui lòng điền đầy đủ các trường!'];
+            } elseif ($this->userModel->registerUser($username, $email, $password, $is_active, $role)) {
+                $user = $this->userModel->findByEmail($email);
+                NotificationServer::sendNotification(
+                    $user['id'],
+                    'auth',
+                    [
+                        'title' => 'Chào mừng đối tác',
+                        'message' => "Chào mừng bạn đến với Chợ C2C, $username! Vui lòng mua gói nâng cấp để trở thành đối tác chính thức.",
+                        'link' => '/upgrade'
+                    ]
+                );
+                $response = ['success' => true, 'message' => 'Đăng ký đối tác thành công! Vui lòng mua gói nâng cấp.', 'redirect' => '/upgrade'];
+            } else {
+                $response = ['success' => false, 'message' => 'Đăng ký thất bại! Email hoặc tên người dùng đã tồn tại.'];
+            }
+
+            if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode($response);
+                exit;
+            }
+
+            Session::set($response['success'] ? 'success' : 'error', $response['message']);
+            if ($response['success']) {
+                header('Location: /upgrade');
+                exit;
+            }
+        }
+
+        require_once __DIR__ . '/../Views/auth/partner_register.php';
+    }
+
     public function login()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -71,10 +125,11 @@ class AuthController
                     ];
                 } elseif ($user) {
                     Session::set('user', $user);
+                    $redirect = $user['role'] === 'partners' && !$user['is_partner_paid'] ? '/upgrade' : '/';
                     $response = [
                         'success' => true,
                         'message' => 'Đăng nhập thành công!',
-                        'redirect' => '/'
+                        'redirect' => $redirect
                     ];
                 } else {
                     $response = [
@@ -92,12 +147,64 @@ class AuthController
 
             Session::set($response['success'] ? 'success' : 'error', $response['message']);
             if ($response['success']) {
-                header('Location: /profile');
+                header('Location: ' . $response['redirect']);
                 exit;
             }
         }
 
         require_once __DIR__ . '/../Views/auth/login.php';
+    }
+
+    public function googleLogin()
+    {
+        $client = new Google_Client();
+        $client->setClientId($_ENV['GOOGLE_CLIENT_ID']);
+        $client->setClientSecret($_ENV['GOOGLE_CLIENT_SECRET']);
+        $client->setRedirectUri('http://localhost:8080/google-callback');
+        $client->addScope('email');
+        $client->addScope('profile');
+
+        if (isset($_GET['code'])) {
+            $token = $client->fetchAccessTokenWithAuthCode($_GET['code']);
+            if (isset($token['error'])) {
+                Session::set('error', 'Lỗi xác thực Google: ' . $token['error']);
+                header('Location: /login');
+                exit;
+            }
+
+            $client->setAccessToken($token);
+            $google_oauth = new \Google_Service_Oauth2($client);
+            $userInfo = $google_oauth->userinfo->get();
+
+            $email = $userInfo->email;
+            $username = $userInfo->name;
+            $googleId = $userInfo->id;
+
+            $user = $this->userModel->loginWithGoogle($email, $googleId, $username);
+
+            if ($user === 'locked') {
+                Session::set('error', 'Tài khoản của bạn đã bị khóa, vui lòng liên hệ quản trị viên!');
+                header('Location: /login');
+                exit;
+            } elseif ($user === 'partner_not_allowed') {
+                Session::set('error', 'Đối tác không được phép đăng nhập bằng Google!');
+                header('Location: /login');
+                exit;
+            } elseif ($user) {
+                Session::set('user', $user);
+                $redirect = $user['role'] === 'partners' && !$user['is_partner_paid'] ? '/upgrade' : '/';
+                Session::set('success', 'Đăng nhập bằng Google thành công!');
+                header('Location: ' . $redirect);
+                exit;
+            } else {
+                Session::set('error', 'Đăng nhập bằng Google thất bại!');
+                header('Location: /login');
+                exit;
+            }
+        } else {
+            header('Location: ' . $client->createAuthUrl());
+            exit;
+        }
     }
 
     public function logout()
@@ -202,21 +309,6 @@ class AuthController
         require_once __DIR__ . '/../Views/auth/forgot_password.php';
     }
 
-    public function profile()
-    {
-        if (!Session::get('user')) {
-            Session::set('error', 'Vui lòng đăng nhập để xem hồ sơ!');
-            header('Location: /login');
-            exit;
-        }
-
-        $userId = Session::get('user')['id'];
-        $products = $this->productModel->getProductsByUserId($userId);
-        $orders = $this->orderModel->getOrdersBySellerId($userId);
-
-        require_once __DIR__ . '/../Views/profile/index.php';
-    }
-
     public function resetPassword()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -263,5 +355,20 @@ class AuthController
         }
 
         require_once __DIR__ . '/../Views/auth/reset_password.php';
+    }
+
+    public function profile()
+    {
+        if (!Session::get('user')) {
+            Session::set('error', 'Vui lòng đăng nhập để xem hồ sơ!');
+            header('Location: /login');
+            exit;
+        }
+
+        $userId = Session::get('user')['id'];
+        $products = $this->productModel->getProductsByUserId($userId);
+        $orders = $this->orderModel->getOrdersBySellerId($userId);
+
+        require_once __DIR__ . '/../Views/profile/index.php';
     }
 }
