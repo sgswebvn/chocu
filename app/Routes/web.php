@@ -23,8 +23,10 @@ use App\Controllers\Partners\PProductController;
 use App\Controllers\Partners\PReviewController;
 use App\Controllers\Partners\PTransactionController;
 use App\Controllers\Partners\POrderController;
+use App\Controllers\Partners\PProfileController;
 use App\Controllers\StoreController;
 use App\Controllers\UpgradeController;
+use App\Controllers\AccountantController;
 
 // === Trang chính ===
 $router->get('/', [HomeController::class, 'index']);
@@ -145,14 +147,23 @@ $router->get('/admin/users/view/{id}', [AdminController::class, 'view_user']);
 // Liên hệ
 $router->get('/admin/contacts', [AdminController::class, 'contacts']);
 
+
+$router->get('/admin/accountants', [AdminController::class, 'accountantsList']); 
+$router->post('/admin/accountants/create', [AdminController::class, 'create_accountant']);
+$router->post('/admin/accountants/delete', [AdminController::class, 'deleteAccountant']);
+$router->post('/admin/accountants/reset-password', [AdminController::class, 'resetAccountantPassword']);
+
+$router->get('/accountant/dashboard', [AccountantController::class, 'dashboard']);
+$router->get('/accountant/history', [AccountantController::class, 'history']);
+$router->post('/accountant/approve', [AccountantController::class, 'approve']);
+$router->post('/accountant/reject', [AccountantController::class, 'reject']);
+$router->post('/accountant/complete', [AccountantController::class, 'complete']);
+
+
 // -- Quản lý thông báo --
 $router->post('/notifications/mark-read', [NotificationController::class, 'markRead']);
 $router->post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead']);
 $router->get('/notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
-
-
-
-
 
 // -- Đối tác --
 
@@ -160,6 +171,11 @@ $router->get('/notifications/unread-count', [NotificationController::class, 'get
 $router->get('/partners', [PartnersController::class, 'index']);
 $router->get('/partners/dashboard', [PartnersController::class, 'dashboard']);
 
+$router->get('/partners/profile/bank', [PProfileController::class, 'index']);
+$router->post('/partners/profile/bank', [PProfileController::class, 'saveBank']);
+
+$router->get('/partners/withdraw', [PartnersController::class, 'withdraw']);
+$router->post('/partners/withdraw/request', [PartnersController::class, 'requestWithdraw']);
 
 // Quản lý thông tin đối tác
 $router->get('/partners/profile', [PartnersController::class, 'profile']);

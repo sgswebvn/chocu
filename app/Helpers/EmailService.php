@@ -47,5 +47,34 @@ class EmailService
             return false;
         }
     }
+    public function sendVerificationCode($to, $username, $code)
+{
+    try {
+        $this->mailer->addAddress($to);
+        $this->mailer->isHTML(true);
+        $this->mailer->Subject = 'Mã xác minh tài khoản Chợ C2C';
+
+        $this->mailer->Body = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee;'>
+                <h2 style='color: #333;'>Xác minh tài khoản</h2>
+                <p>Xin chào <strong>{$username}</strong>,</p>
+                <p>Mã xác minh của bạn là:</p>
+                <h1 style='background: #f0f0f0; padding: 15px; text-align: center; letter-spacing: 5px; font-size: 28px;'>
+                    <strong>{$code}</strong>
+                </h1>
+                <p>Mã này có hiệu lực trong <strong>5 phút</strong>.</p>
+                <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+                <hr>
+                <small>Chợ C2C - Nền tảng mua bán C2C</small>
+            </div>
+        ";
+
+        $this->mailer->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Email send failed: " . $e->getMessage());
+        return false;
+    }
+}
 }
 ?>

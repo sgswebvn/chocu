@@ -17,120 +17,114 @@ if ($success) {
 
 include __DIR__ . '/../layouts/header.php';
 ?>
-
 <main class="pt-90">
     <div class="mb-4 pb-4"></div>
     <section class="login-register container">
-        <ul class="nav nav-tabs mb-5" id="login_register_tab" role="tablist">
-            <li class="nav-item" role="presentation">
-                <a class="nav-link nav-link_underscore active" id="register-tab" data-bs-toggle="tab" href="#tab-item-register"
-                    role="tab" aria-controls="tab-item-register" aria-selected="true">Đăng ký</a>
-            </li>
-            <li class="nav-item" role="presentation">
-                <a class="nav-link nav-link_underscore" href="/login">Đăng nhập</a>
-            </li>
-        </ul>
-        <div class="tab-content pt-2" id="login_register_tab_content">
-            <div class="tab-pane fade show active" id="tab-item-register" role="tabpanel" aria-labelledby="register-tab">
-                <div class="register-form">
-                    <form id="register-form" method="POST" action="/register" name="register-form" class="needs-validation" novalidate>
-                        <div class="form-floating mb-3">
-                            <input type="text" class="form-control form-control_gray" name="username" id="username" required>
-                            <label for="username">Tên người dùng *</label>
-                        </div>
-                        <div class="form-floating mb-3">
-                            <input type="email" class="form-control form-control_gray" name="email" id="email" required>
-                            <label for="email">Email *</label>
-                        </div>
-                        <div class="form-floating mb-3">
-                            <input type="password" class="form-control form-control_gray" name="password" id="password" required>
-                            <label for="password">Mật khẩu *</label>
-                        </div>
-                        <button class="btn btn-primary w-100 text-uppercase" type="submit">Đăng ký</button>
-                        <div class="customer-option mt-4 text-center">
-                            <span class="text-secondary">Đã có tài khoản?</span>
-                            <a href="/login" class="btn-text ms-2">Đăng nhập</a>
-                        </div>
-                        <div class="customer-option mt-2 text-center">
-                            <span class="text-secondary">Muốn trở thành đối tác?</span>
-                            <a href="/partner-register" class="btn-text ms-2">Đăng ký làm đối tác</a>
-                        </div>
-                    </form>
+        <h2 class="mb-5 text-center">Đăng ký tài khoản</h2>
+
+        <!-- Bước 1: Nhập thông tin -->
+        <div id="step-register" class="register-step">
+            <form id="form-register-info">
+                <input type="hidden" name="action" value="send_otp">
+                <div class="form-floating mb-3">
+                    <input type="text" class="form-control" name="username" required>
+                    <label>Tên người dùng *</label>
                 </div>
+                <div class="form-floating mb-3">
+                    <input type="email" class="form-control" name="email" required>
+                    <label>Email *</label>
+                </div>
+                <div class="form-floating mb-4">
+                    <input type="password" class="form-control" name="password" required minlength="6">
+                    <label>Mật khẩu *</label>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Gửi mã xác minh</button>
+            </form>
+        </div>
+
+        <!-- Bước 2: Nhập OTP -->
+        <div id="step-otp" class="register-step d-none">
+            <div class="text-center mb-4">
+                <h5>Nhập mã OTP đã gửi đến email</h5>
+                <small class="text-muted">Mã có hiệu lực trong 5 phút</small>
             </div>
+            <form id="form-verify-otp">
+                <input type="hidden" name="action" value="verify_otp">
+                <div class="text-center mb-3">
+                    <input type="text" class="form-control form-control-lg text-center" 
+                           name="otp" maxlength="6" placeholder="------" required 
+                           style="letter-spacing: 10px; font-size: 24px;">
+                </div>
+                <button type="submit" class="btn btn-success w-100">Xác nhận đăng ký</button>
+                <div class="mt-3 text-center">
+                    <a href="#" id="resend-otp" class="text-primary">Gửi lại mã</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="text-center mt-4">
+            <span>Đã có tài khoản? </span>
+            <a href="/login" class="btn-text">Đăng nhập</a>
         </div>
     </section>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const form = document.getElementById('register-form');
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            if (!form.checkValidity()) {
-                form.classList.add('was-validated');
-                return;
-            }
+document.getElementById('form-register-info').onsubmit = async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
 
-            const formData = new FormData(form);
-            fetch(form.action, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    Swal.fire({
-                        icon: data.success ? 'success' : 'error',
-                        title: data.success ? 'Thành công' : 'Lỗi',
-                        text: data.message,
-                        confirmButtonText: 'OK',
-                        confirmButtonColor: data.success ? '#3085d6' : '#d33',
-                        timer: data.success ? 2000 : null,
-                        timerProgressBar: true
-                    }).then(() => {
-                        if (data.success && data.redirect) {
-                            window.location.href = data.redirect;
-                        }
-                    });
-                })
-                .catch(error => {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Lỗi',
-                        text: 'Đã xảy ra lỗi khi đăng ký!',
-                        confirmButtonText: 'OK',
-                        confirmButtonColor: '#d33'
-                    });
-                });
-        });
-
-        <?php if ($error): ?>
-            Swal.fire({
-                icon: 'error',
-                title: 'Lỗi',
-                text: '<?= htmlspecialchars($error) ?>',
-                confirmButtonText: 'OK',
-                confirmButtonColor: '#d33'
-            });
-        <?php endif; ?>
-        <?php if ($success): ?>
-            Swal.fire({
-                icon: 'success',
-                title: 'Thành công',
-                text: '<?= htmlspecialchars($success) ?>',
-                confirmButtonText: 'OK',
-                confirmButtonColor: '#3085d6',
-                timer: 2000,
-                timerProgressBar: true
-            });
-        <?php endif; ?>
+    const res = await fetch('/register', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
     });
-</script>
+    const data = await res.json();
 
+    Swal.fire({
+        icon: data.success ? 'success' : 'error',
+        title: data.success ? 'Thành công' : 'Lỗi',
+        text: data.message,
+        timer: data.success ? 1500 : null
+    });
+
+    if (data.success && data.step === 'verify') {
+        document.getElementById('step-register').classList.add('d-none');
+        document.getElementById('step-otp').classList.remove('d-none');
+    }
+};
+
+document.getElementById('form-verify-otp').onsubmit = async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+
+    const res = await fetch('/register', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+
+    Swal.fire({
+        icon: data.success ? 'success' : 'error',
+        title: data.success ? 'Thành công!' : 'Thất bại',
+        text: data.message,
+        timer: data.success ? 2000 : null
+    }).then(() => {
+        if (data.success && data.redirect) {
+            window.location.href = data.redirect;
+        }
+    });
+};
+
+// Gửi lại OTP
+document.getElementById('resend-otp').onclick = async function(e) {
+    e.preventDefault();
+    // Có thể lấy lại thông tin từ session hoặc yêu cầu nhập lại email
+    Swal.fire('Chức năng gửi lại mã đang phát triển');
+};
+</script>
 <?php
 include __DIR__ . '/../layouts/footer.php';
 ?>

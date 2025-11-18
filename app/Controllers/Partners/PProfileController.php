@@ -13,35 +13,17 @@ class PProfileController
     private $userModel;
     private $productModel;
     private $orderModel;
+    private $db;
 
     public function __construct()
     {
         $this->userModel = new User();
         $this->productModel = new Product();
         $this->orderModel = new Order();
+        $this->db = (new \App\Config\Database())->getConnection();
+
+
     }
-
-    public function index()
-    {
-        if (!Session::get('user')) {
-            Session::set('error', 'Vui lòng đăng nhập để xem hồ sơ!');
-            header('Location: /login');
-            exit;
-        }
-
-        $user = Session::get('user');
-        if ($user['role'] !== 'partners' || !$user['is_partner_paid']) {
-            Session::set('error', 'Bạn cần nâng cấp tài khoản đối tác để truy cập!');
-            header('Location: /upgrade');
-            exit;
-        }
-
-        $userId = $user['id'];
-        $productCount = $this->productModel->countAllByUser($userId);
-        $orderCount = $this->orderModel->countOrdersBySellerId($userId);
-        require_once __DIR__ . '/../../Views/a-partner/profile/index.php';
-    }
-
     public function updateProfile()
     {
         if (!Session::get('user')) {
@@ -93,4 +75,81 @@ class PProfileController
 
         require_once __DIR__ . '/../../Views/a-partner/profile/edit.php';
     }
+
+public function index()
+{
+    if (!Session::get('user')) {
+        Session::set('error', 'Vui lòng đăng nhập!');
+        header('Location: /login'); exit;
+    }
+
+    $user = Session::get('user');
+    if ($user['role'] !== 'partners' || !$user['is_partner_paid']) {
+        Session::set('error', 'Bạn cần nâng cấp tài khoản đối tác!');
+        header('Location: /upgrade'); exit;
+    }
+
+    $userId = $user['id'];
+
+    // LẤY NGÂN HÀNG
+
+    $stmt = $this->db->prepare("SELECT * FROM bank_accounts WHERE user_id = ? LIMIT 1");
+$stmt->bindValue(1, (int)$userId, PDO::PARAM_INT);
+$stmt->execute();
+$bankAccount = $stmt->fetch(PDO::FETCH_ASSOC);
+
+
+    require_once __DIR__ . '/../../Views/a-partner/profile/index.php';
+}
+
+public function saveBank()
+{
+    if (!Session::get('user')) {
+        header('Location: /login'); exit;
+    }
+
+    $userId = Session::get('user')['id'];
+
+    $account_number  = trim($_POST['account_number'] ?? '');
+    $account_holder  = trim($_POST['account_holder'] ?? '');
+    $bank_name       = trim($_POST['bank_name'] ?? '');
+    $branch          = trim($_POST['branch'] ?? '');
+    $logo            = trim($_POST['logo'] ?? '');
+    $bank_code       = trim($_POST['bank_code'] ?? '');
+    $bank_short_name = trim($_POST['bank_short_name'] ?? $bank_name);
+
+    if (empty($account_number) || empty($account_holder) || empty($bank_name)) {
+        Session::set('error', 'Vui lòng điền đầy đủ thông tin ngân hàng!');
+        header('Location: /partners/profile');
+        exit;
+    }
+
+    try {
+        // DÙNG $this->db → ĐÃ CÓ SẴN TỪ __construct()
+        $this->db->prepare("DELETE FROM bank_accounts WHERE user_id = ?")->execute([$userId]);
+
+        $sql = "INSERT INTO bank_accounts 
+                (user_id, bank_name, bank_short_name, account_number, account_holder, branch, logo, bank_code, is_default, created_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())";
+
+        $this->db->prepare($sql)->execute([
+            $userId,
+            $bank_name,
+            $bank_short_name,
+            $account_number,
+            $account_holder,
+            $branch,
+            $logo,
+            $bank_code
+        ]);
+
+        Session::set('success', 'Liên kết ngân hàng thành công! Bạn đã có thể rút tiền.');
+    } catch (Exception $e) {
+        Session::set('error', 'Lỗi hệ thống: ' . $e->getMessage());
+        error_log($e->getMessage());
+    }
+
+    header('Location: /partners/profile');
+    exit;
+}
 }

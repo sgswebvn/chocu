@@ -7,34 +7,30 @@ class Database
     private $pdo;
 
     public function __construct()
-    {
-        // $host = $_ENV['DB_HOST'];
-        // $dbname = $_ENV['DB_NAME'];
-        // $user = $_ENV['DB_USER'];
-        // $pass = $_ENV['DB_PASS'];
+{
+    $host = 'localhost';
+    $dbname = 'c2c_marketplace';
+    $user = 'root';
+    $pass = '';
 
-        //         DB_HOST=localhost
-        // DB_NAME=c2c_marketplace
-        // DB_USER=root
-        // DB_PASS=
-        // APP_URL=http://localhost:8080
+    try {
+        $this->pdo = new \PDO(
+            "mysql:host=$host;dbname=$dbname;charset=utf8mb4",
+            $user,
+            $pass,
+            [
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+            ]
+        );
 
-        $host = 'localhost';
-        $dbname = 'c2c_marketplace';
-        $user = 'root';
-        $pass = '';
+        // DÒNG QUAN TRỌNG NHẤT – BẮT BUỘC CÓ
+        $this->pdo->exec("SET time_zone = '+07:00'");
 
-
-        // Kết nối đến cơ sở dữ liệu
-
-
-        try {
-            $this->pdo = new \PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
-            $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-        } catch (\PDOException $e) {
-            die("Connection failed: " . $e->getMessage());
-        }
+    } catch (\PDOException $e) {
+        die("Kết nối thất bại: " . $e->getMessage());
     }
+}
 
     public function getConnection()
     {

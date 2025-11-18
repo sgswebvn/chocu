@@ -1,86 +1,50 @@
+<?php require_once __DIR__ . '/../layouts/header.php'; ?>
+<?php require_once __DIR__ . '/../layouts/navbar.php'; ?>
+
 <?php
-require_once __DIR__ . '/../layouts/header.php';
-require_once __DIR__ . '/../layouts/navbar.php';
+use App\Helpers\Session;
+use App\Config\Database;
+
+// === LẤY USER HIỆN TẠI ===
+$user = Session::get('user');
+if (!$user || $user['role'] !== 'partners' || !$user['is_partner_paid']) {
+    Session::set('error', 'Bạn cần nâng cấp tài khoản đối tác!');
+    header('Location: /upgrade');
+    exit;
+}
+
+// === LẤY NGÂN HÀNG TRỰC TIẾP TỪ DB – PHP THUẦN 100% ===
+try {
+    $pdo = (new Database())->getConnection();
+    $stmt = $pdo->prepare("SELECT * FROM bank_accounts WHERE user_id = ? AND is_default = 1 LIMIT 1");
+    $stmt->execute([$user['id']]);
+    $bankAccount = $stmt->fetch(PDO::FETCH_ASSOC); // có hoặc false
+} catch (Exception $e) {
+    $bankAccount = null;
+    error_log("Lỗi lấy ngân hàng: " . $e->getMessage());
+}
+
+// === TÍNH AVATAR ===
+$avatar = !empty($user['images'])
+    ? '/uploads/partners/' . htmlspecialchars($user['images']) . '?t=' . time()
+    : '/assets/images/user/avatar-2.jpg';
 ?>
 
 <header class="pc-header">
     <div class="header-wrapper">
         <div class="me-auto pc-mob-drp">
             <ul class="list-unstyled">
-                <li class="pc-h-item pc-sidebar-collapse">
-                    <a href="#" class="pc-head-link ms-0" id="sidebar-hide">
-                        <i class="ti ti-menu-2"></i>
-                    </a>
-                </li>
-                <li class="pc-h-item pc-sidebar-popup">
-                    <a href="#" class="pc-head-link ms-0" id="mobile-collapse">
-                        <i class="ti ti-menu-2"></i>
-                    </a>
-                </li>
+                <li class="pc-h-item pc-sidebar-collapse"><a href="#" class="pc-head-link ms-0" id="sidebar-hide"><i class="ti ti-menu-2"></i></a></li>
+                <li class="pc-h-item pc-sidebar-popup"><a href="#" class="pc-head-link ms-0" id="mobile-collapse"><i class="ti ti-menu-2"></i></a></li>
             </ul>
         </div>
         <div class="ms-auto">
             <ul class="list-unstyled">
-                <li class="dropdown pc-h-item">
-                    <a class="pc-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">
-                        <i class="ti ti-bell"></i>
-                        <span class="badge bg-success pc-h-badge" id="notify-count"><?php echo $this->notificationModel->getUnreadCount($data['user']['id']); ?></span>
-                    </a>
-                    <div class="dropdown-menu dropdown-notification dropdown-menu-end pc-h-dropdown p-0">
-                        <div class="dropdown-header d-flex align-items-center justify-content-between p-3 border-bottom">
-                            <h5 class="m-0 fw-semibold">Thông báo</h5>
-                            <a href="/notifications/mark-all-read" class="pc-head-link text-success bg-transparent"><i class="ti ti-circle-check"></i></a>
-                        </div>
-                        <div class="notification-content overflow-auto" style="min-height: 200px; max-height: 60vh;">
-                            <div class="list-group list-group-flush w-100" id="notify-list">
-                                <?php if (empty($data['notifications'])): ?>
-                                    <div class="text-center p-3 text-muted">Không có thông báo</div>
-                                <?php else: ?>
-                                    <?php foreach ($data['notifications'] as $notification): ?>
-                                        <div class="notify-item list-group-item <?php echo $notification['is_read'] ? '' : 'unread'; ?>" data-id="<?php echo $notification['id']; ?>">
-                                            <a href="<?php echo $notification['link'] ?: '#'; ?>" class="text-decoration-none text-dark">
-                                                <div class="d-flex w-100 justify-content-between">
-                                                    <div>
-                                                        <div class="notification-title fw-bold"><?php echo htmlspecialchars($notification['title']); ?></div>
-                                                        <div class="notification-body text-muted small"><?php echo htmlspecialchars($notification['message']); ?></div>
-                                                    </div>
-                                                    <div class="notification-time text-muted small text-end"><?php echo date('d/m/Y H:i', strtotime($notification['created_at'])); ?></div>
-                                                </div>
-                                            </a>
-                                        </div>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                        <div class="dropdown-footer p-2 border-top">
-                            <a href="/notifications" class="btn btn-primary w-100 text-white">Xem tất cả</a>
-                        </div>
-                    </div>
-                </li>
                 <li class="dropdown pc-h-item header-user-profile">
-                    <a class="pc-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" data-bs-auto-close="outside" aria-expanded="false">
-                        <?php
-                        $avatar = !empty($data['user']['images'])
-                            ? '/uploads/partners/' . htmlspecialchars($data['user']['images']) . '?t=' . time()
-                            : '/assets/images/user/avatar-2.jpg';
-                        ?>
-                        <img src="<?php echo $avatar; ?>" alt="user-image" class="user-avtar wid-35">
-                        <span><?php echo htmlspecialchars($data['user']['username']); ?></span>
+                    <a class="pc-head-link dropdown-toggle arrow-none me-0" data-bs-toggle="dropdown" href="#" role="button">
+                        <img src="<?= $avatar ?>" alt="user" class="user-avtar wid-35 rounded-circle">
+                        <span><?= htmlspecialchars($user['username']) ?></span>
                     </a>
-                    <div class="dropdown-menu dropdown-user-profile dropdown-menu-end pc-h-dropdown">
-                        <div class="dropdown-header">
-                            <div class="d-flex mb-1">
-                                <div class="flex-shrink-0">
-                                    <img src="<?php echo $avatar; ?>" alt="user-image" class="user-avtar wid-35">
-                                </div>
-                                <div class="flex-grow-1 ms-3">
-                                    <h6 class="mb-1"><?php echo htmlspecialchars($data['user']['username']); ?></h6>
-                                    <span>Đối tác</span>
-                                </div>
-                                <a href="/logout" class="pc-head-link bg-transparent"><i class="ti ti-power text-danger"></i></a>
-                            </div>
-                        </div>
-                    </div>
                 </li>
             </ul>
         </div>
@@ -93,50 +57,82 @@ require_once __DIR__ . '/../layouts/navbar.php';
             <div class="page-block">
                 <div class="row align-items-center">
                     <div class="col-md-12">
-                        <div class="page-header-title">
-                            <h5 class="m-b-10">Hồ sơ cá nhân</h5>
-                        </div>
+                        <div class="page-header-title"><h5 class="m-b-10">Hồ sơ cá nhân</h5></div>
                     </div>
                 </div>
             </div>
         </div>
+
         <div class="row">
+            <!-- Cột trái: Thông tin cá nhân -->
             <div class="col-md-12 col-xl-6">
                 <div class="card">
                     <div class="card-body">
-                        <h6 class="mb-2 f-w-400 text-muted">Thông tin cá nhân</h6>
+                        <h6 class="mb-3 fw-bold text-primary">Thông tin cá nhân</h6>
                         <form action="/partners/profile" method="POST" enctype="multipart/form-data">
                             <div class="mb-3">
-                                <label for="username" class="form-label">Tên người dùng</label>
-                                <input type="text" class="form-control" id="username" name="username" value="<?php echo htmlspecialchars($data['user']['username']); ?>" required>
+                                <label class="form-label">Tên người dùng</label>
+                                <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($user['username']) ?>" required>
                             </div>
                             <div class="mb-3">
-                                <label for="email" class="form-label">Email</label>
-                                <input type="email" class="form-control" id="email" name="email" value="<?php echo htmlspecialchars($data['user']['email']); ?>" required>
+                                <label class="form-label">Email</label>
+                                <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" required>
                             </div>
-                            <div class="mb-3">
+                            <div class="mb-4">
                                 <label class="form-label d-block">Ảnh đại diện</label>
                                 <div class="position-relative d-inline-block">
-                                    <img id="avatar-preview"
-                                        src="<?php echo $avatar; ?>"
-                                        alt="avatar hiện tại"
-                                        class="rounded-circle border"
-                                        style="width: 100px; height: 100px; object-fit: cover; cursor: pointer;">
-                                    <label for="image" class="position-absolute bottom-0 end-0 bg-dark text-white rounded-circle p-1"
-                                        style="cursor: pointer;">
-                                        <i class="ti ti-camera"></i>
+                                    <img id="avatar-preview" src="<?= $avatar ?>" class="rounded-circle border" style="width:120px;height:120px;object-fit:cover;cursor:pointer;">
+                                    <label for="image" class="position-absolute bottom-0 end-0 bg-primary text-white rounded-circle p-2 shadow" style="cursor:pointer;">
+                                        <i class="ti ti-camera fs-5"></i>
                                     </label>
                                 </div>
                                 <input type="file" id="image" name="image" accept="image/*" hidden>
-                                <small class="form-text text-muted d-block mt-2">Chỉ chấp nhận file JPG, JPEG, PNG, GIF.</small>
+                                <small class="form-text text-muted d-block mt-2">JPG, PNG, GIF. Tối đa 2MB.</small>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Vai trò</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($data['user']['role']); ?>" disabled>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">Cập nhật hồ sơ</button>
+                                <a href="/store/<?= $user['id'] ?>" class="btn btn-success">Xem gian hàng</a>
                             </div>
-                            <button type="submit" class="btn btn-primary">Cập nhật hồ sơ</button>
-                            <a href="/store/<?php echo $data['user']['id']; ?>" class="btn btn-success">Xem gian hàng</a>
                         </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột phải: Thông tin ngân hàng -->
+            <div class="col-md-12 col-xl-6">
+                <div class="card border-primary shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Thông tin nhận tiền rút</h5>
+                    </div>
+                    <div class="card-body">
+                        <?php if ($bankAccount): ?>
+                            <div class="alert alert-success d-flex align-items-center mb-3">
+                                <i class="ti ti-check fs-5 me-2"></i>
+                                <div>Đã liên kết ngân hàng thành công!</div>
+                            </div>
+                            <div class="text-center bg-light p-4 rounded border mb-3">
+                                <img src="<?= htmlspecialchars($bankAccount['logo'] ?? 'https://vietqr.io/assets/banks/default.png') ?>" 
+                                     width="80" class="mb-3 rounded shadow">
+                                <div class="fw-bold fs-5"><?= htmlspecialchars($bankAccount['bank_name']) ?></div>
+                                <div class="text-muted">STK: <strong><?= htmlspecialchars($bankAccount['account_number']) ?></strong></div>
+                                <div class="text-muted">Chủ TK: <strong><?= htmlspecialchars($bankAccount['account_holder']) ?></strong></div>
+                                <?php if (!empty($bankAccount['branch'])): ?>
+                                    <div class="text-muted small mt-1">Chi nhánh: <?= htmlspecialchars($bankAccount['branch']) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="text-center py-5 text-muted">
+                                <i class="ti ti-building-bank" style="font-size:70px;"></i>
+                                <p class="mt-3 text-danger fw-bold fs-4">Chưa liên kết ngân hàng</p>
+                                <small class="d-block">Bạn cần liên kết ngân hàng để rút tiền từ ví</small>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="text-end">
+                            <button type="button" class="btn btn-primary px-5" data-bs-toggle="modal" data-bs-target="#bankModal">
+                                <?= $bankAccount ? 'Sửa thông tin' : 'Liên kết ngay' ?>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -144,82 +140,146 @@ require_once __DIR__ . '/../layouts/navbar.php';
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Modal liên kết ngân hàng -->
+<div class="modal fade" id="bankModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form action="/partners/profile/bank" method="POST" id="bankForm">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Liên kết tài khoản ngân hàng</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Chọn ngân hàng <span class="text-danger">*</span></label>
+                        <select name="bank_code" id="bank_select" class="form-select form-select-lg" required>
+                            <option value="">-- Đang tải danh sách ngân hàng... --</option>
+                        </select>
+                        <div id="bank_preview" class="text-center mt-3" style="display:none;">
+                            <img id="bank_logo" src="" width="80" class="rounded shadow">
+                            <div class="mt-2"><strong id="bank_name_preview" class="text-primary"></strong></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Số tài khoản <span class="text-danger">*</span></label>
+                        <input type="text" name="account_number" id="account_number" class="form-control form-control-lg" 
+                               value="<?= $bankAccount['account_number'] ?? '' ?>" placeholder="Nhập số tài khoản" required>
+                        <div id="lookup_result" class="mt-2"></div>
+                    </div>
+
+                    <input type="hidden" name="bank_name" id="hidden_bank_name">
+                    <input type="hidden" name="logo" id="hidden_logo">
+                    <input type="hidden" name="bank_short_name" id="bank_short_name_input">
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Chủ tài khoản <span class="text-danger">*</span></label>
+                            <input type="text" name="account_holder" id="account_holder" class="form-control" 
+                                   value="<?= $bankAccount['account_holder'] ?? '' ?>" readonly required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Chi nhánh (không bắt buộc)</label>
+                            <input type="text" name="branch" class="form-control" 
+                                   value="<?= $bankAccount['branch'] ?? '' ?>" placeholder="VD: Chi nhánh Hà Nội">
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary px-5">Lưu thông tin ngân hàng</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
-    $(document).ready(function() {
-        // Đánh dấu tất cả đã đọc khi nhấp vào nút
-        $('a[href="/notifications/mark-all-read"]').on('click', function(e) {
-            e.preventDefault();
-            $.post('/notifications/mark-all-read', {
-                user_id: <?php echo $data['user']['id']; ?>
-            }, function(response) {
-                if (response.success) {
-                    $('.notify-item.unread').removeClass('unread');
-                    $('#notify-count').text('0').hide();
-                    alert('Đã đánh dấu tất cả thông báo là đã đọc!');
-                } else {
-                    alert('Có lỗi xảy ra khi đánh dấu thông báo.');
-                }
-            }).fail(function() {
-                console.error('Lỗi khi gọi API mark-all-read');
-                alert('Có lỗi xảy ra. Vui lòng thử lại.');
-            });
-        });
+// API MIỄN PHÍ 100%
+const BANKS_API = 'https://api.vietqr.io/v2/banks';
+const LOOKUP_API = 'https://api.vietqr.io/v2/lookup';
+let banks = [];
 
-        // Đánh dấu từng thông báo đã đọc khi nhấp
-        $('.notify-item').on('click', function(e) {
-            const link = $(this).find('a').attr('href');
-            const id = $(this).data('id');
-            if (link !== '#' && id) {
-                $.post('/notifications/mark-read', {
-                    id: id
-                }, function(response) {
-                    if (response.success) {
-                        $(`.notify-item[data-id="${id}"]`).removeClass('unread');
-                        updateNotificationCount();
-                    }
-                }).fail(function() {
-                    console.error('Lỗi khi đánh dấu thông báo đã đọc');
-                });
-            }
-        });
+// Load danh sách ngân hàng khi mở modal
+document.getElementById('bankModal').addEventListener('shown.bs.modal', function () {
+    if (banks.length === 0) {
+        fetch(BANKS_API)
+            .then(r => r.json())
+            .then(res => {
+                if (res.code === '00') {
+                    banks = res.data;
+                    const select = document.getElementById('bank_select');
+                    select.innerHTML = '<option value="">-- Chọn ngân hàng --</option>';
+                    banks.forEach(b => {
+                        const opt = new Option(`${b.shortName} - ${b.name}`, b.bin);
+                        opt.dataset.logo = b.logo;
+                        select.add(opt);
+                    });
 
-        // Cập nhật số lượng thông báo chưa đọc
-        function updateNotificationCount() {
-            $.get('/notifications/unread-count', {
-                user_id: <?php echo $data['user']['id']; ?>
-            }, function(response) {
-                if (response.success) {
-                    const count = response.count;
-                    $('#notify-count').text(count);
-                    if (count == 0) {
-                        $('#notify-count').hide();
-                    } else {
-                        $('#notify-count').show();
-                    }
+                    // Nếu đang sửa → tự động chọn ngân hàng cũ
+                    <?php if ($bankAccount): ?>
+                        select.value = '<?= $bankAccount['bank_code'] ?? '' ?>';
+                        if (select.value) select.dispatchEvent(new Event('change'));
+                        document.getElementById('account_number').dispatchEvent(new Event('input'));
+                    <?php endif; ?>
                 }
-            }).fail(function() {
-                console.error('Lỗi khi lấy số lượng thông báo chưa đọc');
             });
+    }
+});
+
+// Khi chọn ngân hàng
+document.getElementById('bank_select').addEventListener('change', function() {
+    const selected = banks.find(b => b.bin === this.value);
+    const preview = document.getElementById('bank_preview');
+    if (selected) {
+        document.getElementById('bank_logo').src = selected.logo;
+        document.getElementById('bank_name_preview').textContent = selected.shortName;
+        document.getElementById('hidden_bank_name').value = selected.name;
+        document.getElementById('hidden_logo').value = selected.logo;
+        document.getElementById('bank_short_name_input').value = selected.shortName;
+        preview.style.display = 'block';
+    } else {
+        preview.style.display = 'none';
+    }
+});
+
+// Tra cứu tên chủ tài khoản
+document.getElementById('account_number').addEventListener('input', function() {
+    const acc = this.value.replace(/\D/g, '');
+    const bin = document.getElementById('bank_select').value;
+    const result = document.getElementById('lookup_result');
+    result.innerHTML = '';
+
+    if (acc.length < 8 || !bin) return;
+
+    result.innerHTML = '<small class="text-primary">Đang tra cứu...</small>';
+
+    fetch(LOOKUP_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bin: bin, accountNumber: acc })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.code === '00' && res.data.accountName) {
+            document.getElementById('account_holder').value = res.data.accountName;
+            result.innerHTML = `<div class="alert alert-success p-2 small">Chủ tài khoản: <strong>${res.data.accountName}</strong></div>`;
+        } else {
+            result.innerHTML = '<small class="text-warning">Không tìm được tên (vẫn có thể lưu)</small>';
         }
-
-        // Gọi lần đầu để đồng bộ số lượng
-        updateNotificationCount();
-
-        // Xem trước ảnh đại diện khi chọn file
-        $('#image').on('change', function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    $('#avatar-preview').attr('src', e.target.result);
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+    })
+    .catch(() => {
+        result.innerHTML = '<small class="text-danger">Lỗi kết nối, thử lại sau</small>';
     });
+});
+
+// Preview avatar
+document.getElementById('image')?.addEventListener('change', e => {
+    if (e.target.files[0]) {
+        document.getElementById('avatar-preview').src = URL.createObjectURL(e.target.files[0]);
+    }
+});
 </script>
 
-<?php
-require_once __DIR__ . '/../layouts/footer.php';
-?>
+<?php require_once __DIR__ . '/../layouts/footer.php'; ?>

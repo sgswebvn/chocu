@@ -65,6 +65,12 @@ $userName = Session::get('user')['name'] ?? 'Đối tác';
                         <span class="pc-micon"><i class="ti ti-history"></i></span>
                         <span class="pc-mtext">Lịch sử giao dịch</span>
                     </a>
+                </li>    
+                <li class="pc-item">
+                    <a href="/partners/withdraw" class="pc-link">
+                        <span class="pc-micon"><i class="ti ti-history"></i></span>
+                        <span class="pc-mtext">Yêu cầu rút tiền</span>
+                    </a>
                 </li>
 
                 <!-- Caption -->

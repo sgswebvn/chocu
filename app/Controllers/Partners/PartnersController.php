@@ -365,4 +365,71 @@ class PartnersController
             return null;
         }
     }
-}
+    public function withdraw()
+    {
+        if (!Session::get('user')) { header('Location: /login'); exit; }
+        $user = Session::get('user');
+        if ($user['role'] !== 'partners' || !$user['is_partner_paid']) {
+            header('Location: /upgrade'); exit;
+        }
+        require_once __DIR__ . '/../../Views/a-partner/withdraw/index.php';
+    }
+
+    public function requestWithdraw()
+    {
+        if (!Session::get('user')) { header('Location: /login'); exit; }
+        $user = Session::get('user');
+        if ($user['role'] !== 'partners' || !$user['is_partner_paid']) {
+            header('Location: /upgrade'); exit;
+        }
+
+        $amount = (float)($_POST['amount'] ?? 0);
+        if ($amount < 50000) {
+            Session::set('error', 'Số tiền rút tối thiểu là 50.000đ');
+            header('Location: /partners/withdraw'); exit;
+        }
+
+        // Lấy ngân hàng
+        $stmt = $this->db->prepare("SELECT * FROM bank_accounts WHERE user_id = ? AND is_default = 1 LIMIT 1");
+        $stmt->execute([$user['id']]);
+        $bank = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$bank) {
+            Session::set('error', 'Vui lòng liên kết ngân hàng trước khi rút tiền!');
+            header('Location: /partners/profile'); exit;
+        }
+
+        // Tính số dư
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM orders WHERE seller_id = ? AND status = 'delivered'");
+        $stmt->execute([$user['id']]);
+        $totalRevenue = $this->getTotalRevenue($user['id']);
+        $withdrawn = $this->db->prepare("SELECT COALESCE(SUM(amount),0) FROM withdrawal_requests WHERE user_id = ? AND status IN ('approved','completed')");
+        $withdrawn->execute([$user['id']]);
+        $alreadyWithdrawn = $withdrawn->fetchColumn();
+        if (($totalRevenue - $alreadyWithdrawn) < $amount) {
+            Session::set('error', 'Số dư không đủ để rút!');
+            header('Location: /partners/withdraw'); exit;
+        }
+
+        // Tạo yêu cầu rút
+        $this->db->prepare("
+            INSERT INTO withdrawal_requests 
+            (user_id, amount, bank_name, bank_short_name, account_number, account_holder, branch, logo, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+        ")->execute([
+            $user['id'], $amount,
+            $bank['bank_name'], $bank['bank_short_name'], $bank['account_number'],
+            $bank['account_holder'], $bank['branch'], $bank['logo']
+        ]);
+
+        Session::set('success', 'Yêu cầu rút tiền thành công! Vui lòng chờ admin duyệt.');
+        NotificationServer::sendNotification($user['id'], 'withdraw', [
+            'title' => 'Yêu cầu rút tiền',
+            'message' => "Bạn đã gửi yêu cầu rút " . number_format($amount) . "đ",
+            'link' => '/partners/withdraw'
+        ]);
+
+        header('Location: /partners/withdraw');
+        exit;
+    }
+    }

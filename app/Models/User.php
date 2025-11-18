@@ -20,20 +20,35 @@ class User
         return $stmt->execute([$username, $email, $hashedPassword, $is_active, $role]);
     }
 
-    public function login($email, $password)
-    {
-        $stmt = $this->db->prepare("SELECT * FROM users WHERE email = ?");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+ public function login($email, $password)
+{
+    $stmt = $this->db->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
+    $stmt->execute([$email]);
+    $user = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-        if ($user && password_verify($password, $user['password'])) {
-            if ($user['is_active'] == 1) {
-                return 'locked';
-            }
-            return $user;
-        }
+    // 1. Không tìm thấy user
+    if (!$user) {
         return false;
     }
+
+    // 2. Sai mật khẩu
+    if (!password_verify($password, $user['password'])) {
+        return false;
+    }
+
+    // 3. Chưa xác minh email (chưa nhập OTP đúng)
+    if ($user['is_active'] == 0) {
+        return 'not_verified';  // ← RẤT QUAN TRỌNG
+    }
+
+    // 4. Bị admin khóa (tùy bạn định nghĩa: 2 = khóa, hoặc thêm cột is_banned)
+    if ($user['is_active'] == 2) {  // hoặc bạn dùng cột riêng: is_banned = 1
+        return 'locked';
+    }
+
+    // 5. Thành công → trả về user
+    return $user;
+}
 
     public function loginWithGoogle($email, $googleId, $username)
     {
@@ -147,5 +162,97 @@ class User
             error_log("Error fetching products for user ID: $userId - " . $e->getMessage());
             return [];
         }
+    }
+            // Lưu OTP khi đăng ký
+    public function setVerificationCode($email, $code)
+{
+    $expiresAt = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+
+    $stmt = $this->db->prepare("
+        UPDATE users 
+        SET verification_code = ?, 
+            verification_expires = ? 
+        WHERE email = ?
+    ");
+
+    // Thêm dòng này để debug (xem có lỗi SQL không)
+    $success = $stmt->execute([$code, $expiresAt, $email]);
+
+    // Nếu lỗi → ghi log để biết
+    if (!$success) {
+        error_log("Lỗi lưu OTP cho email: $email | Error: " . implode(' | ', $stmt->errorInfo()));
+    }
+
+    return $success;
+}
+
+    // Kiểm tra OTP có đúng và còn hạn không
+    public function verifyCode($email, $code)
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM users 
+            WHERE email = ? 
+            AND verification_code = ? 
+            AND verification_expires > NOW()
+        ");
+        $stmt->execute([$email, $code]);
+        $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if ($user) {
+            // XÓA OTP + KÍCH HOẠT TÀI KHOẢN
+            $this->db->prepare("
+                UPDATE users 
+                SET verification_code = NULL, 
+                    verification_expires = NULL, 
+                    is_active = 1 
+                WHERE id = ?
+            ")->execute([$user['id']]);
+
+            return $user;
+        }
+        return false;
+    }
+
+    // Kiểm tra tài khoản đã xác minh chưa (dùng khi đăng nhập)
+    public function isVerified($userId)
+    {
+        $stmt = $this->db->prepare("SELECT is_active FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $user && $user['is_active'] == 1;
+    }
+        public function findByUsername($username)
+    {
+        $stmt = $this->db->prepare("SELECT * FROM users WHERE username = ? LIMIT 1");
+        $stmt->execute([$username]);
+        return $stmt->fetch(\PDO::FETCH_ASSOC); // trả về false nếu không tìm thấy
+    }
+        public function getBankAccount($userId)
+    {
+        $sql = "SELECT * FROM bank_accounts WHERE user_id = ? AND is_default = 1 LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$userId]);
+        return $stmt->fetch(); // trả về mảng hoặc null
+    }
+
+    public function saveBankAccount($data)
+    {
+        // Xóa cũ
+        $this->db->prepare("DELETE FROM bank_accounts WHERE user_id = ?")->execute([$data['user_id']]);
+
+        // Thêm mới
+        $sql = "INSERT INTO bank_accounts 
+                (user_id, bank_name, bank_short_name, account_number, account_holder, branch, logo, bank_code, is_default, created_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())";
+        $this->db->prepare($sql)->execute([
+            $data['user_id'],
+            $data['bank_name'],
+            $data['bank_short_name'] ?? $data['bank_name'],
+            $data['account_number'],
+            $data['account_holder'],
+            $data['branch'] ?? '',
+            $data['logo'] ?? '',
+            $data['bank_code'] ?? ''
+        ]);
     }
 }

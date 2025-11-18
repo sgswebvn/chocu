@@ -286,5 +286,102 @@ class AdminController
             $this->redirect('/admin/products');
         }
         require_once __DIR__ . '/../Views/admin/view_product.php';
+        }
+    public function create_accountant()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Chỉ xử lý POST + AJAX
+            header('Content-Type: application/json');
+
+            $username = trim($_POST['username'] ?? '');
+            $email    = trim($_POST['email'] ?? '');
+            $password = $_POST['password'] ?? '';
+
+            if (empty($username) || empty($email) || empty($password)) {
+                echo json_encode(['success' => false, 'message' => 'Vui lòng điền đầy đủ thông tin']);
+                exit;
+            }
+
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                echo json_encode(['success' => false, 'message' => 'Email không hợp lệ']);
+                exit;
+            }
+
+            if (strlen($password) < 6) {
+                echo json_encode(['success' => false, 'message' => 'Mật khẩu phải từ 6 ký tự']);
+                exit;
+            }
+
+            // Kiểm tra email đã tồn tại chưa
+            $stmt = $this->db->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt->execute([$email]);
+            if ($stmt->fetch()) {
+                echo json_encode(['success' => false, 'message' => 'Email đã được sử dụng']);
+                exit;
+            }
+
+            $hashed = password_hash($password, PASSWORD_DEFAULT);
+            $stmt = $this->db->prepare("INSERT INTO users (username, email, password, role, created_at) VALUES (?, ?, ?, 'accountant', NOW())");
+            $result = $stmt->execute([$username, $email, $hashed]);
+
+            if ($result) {
+                echo json_encode(['success' => true, 'message' => 'Tạo tài khoản kế toán thành công!']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Lỗi hệ thống, vui lòng thử lại']);
+            }
+            exit;
+        }
+    }
+    public function accountantsList() {
+
+        require_once __DIR__ . '/../Views/admin/accountant/create.php';
+
+    }
+
+    public function deleteAccountant()
+    {
+        header('Content-Type: application/json');
+        $id = $_POST['id'] ?? 0;
+
+        if ($id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'ID không hợp lệ']);
+            exit;
+        }
+
+        // Không cho xóa chính mình hoặc admin
+        $user = Session::get('user');
+        if ($id == $user['id']) {
+            echo json_encode(['success' => false, 'message' => 'Không thể tự xóa chính mình']);
+            exit;
+        }
+
+        $stmt = $this->db->prepare("DELETE FROM users WHERE id = ? AND role = 'accountant'");
+        $result = $stmt->execute([$id]);
+
+        echo json_encode(['success' => $result, 'message' => $result ? 'Đã xóa tài khoản' : 'Lỗi khi xóa']);
+        exit;
+    }
+
+    public function resetAccountantPassword()
+    {
+        header('Content-Type: application/json');
+        $id = $_POST['id'] ?? 0;
+
+        if ($id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'ID không hợp lệ']);
+            exit;
+        }
+
+        $newPass = '123456'; // hoặc random
+        $hashed = password_hash($newPass, PASSWORD_DEFAULT);
+
+        $stmt = $this->db->prepare("UPDATE users SET password = ? WHERE id = ? AND role = 'accountant'");
+        $result = $stmt->execute([$hashed, $id]);
+
+        echo json_encode([
+            'success' => $result,
+            'message' => $result ? "Đã reset mật khẩu thành: 123456" : 'Lỗi khi reset'
+        ]);
+        exit;
     }
 }

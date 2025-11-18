@@ -79,6 +79,7 @@ $unreadCount = $currentUserId ? $notificationModel->getUnreadCount($currentUserI
             <li class="nav-item"><a class="nav-link text-light px-3 py-2" href="/admin/users">Người dùng</a></li>
             <li class="nav-item"><a class="nav-link text-light px-3 py-2" href="/admin/reports">Báo cáo</a></li>
             <li class="nav-item"><a class="nav-link text-light px-3 py-2" href="/admin/contacts">Liên hệ</a></li>
+            <li class="nav-item"><a class="nav-link text-light px-3 py-2" href="/admin/accountants">Tạo tài khoản kế toán </a></li>
         </ul>
     </div>
 </div>
