@@ -26,27 +26,41 @@ class EmailService
     }
     
     public function sendActivationEmail($to, $username, $isActive)
-    {
-        try {
-            $this->mailer->addAddress($to);
-            $this->mailer->isHTML(true);
-            $this->mailer->Subject = $isActive === 0 ? 'Tài khoản của bạn đã được kích hoạt' : 'Tài khoản của bạn đã bị tạm khóa';
-            
-            $statusText = $isActive === 0 ? 'kích hoạt' : 'tạm khóa';
-            $this->mailer->Body = "
-                <h2>Thông báo trạng thái tài khoản</h2>
-                <p>Xin chào {$username},</p>
-                <p>Tài khoản của bạn đã được <strong>{$statusText}</strong> bởi quản trị viên.</p>
-                <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>
-                <p>Trân trọng,<br>Hệ thống quản lý</p>
-            ";
-            
-            $this->mailer->send();
-            return true;
-        } catch (Exception $e) {
-            return false;
+{
+    try {
+        $this->mailer->addAddress($to);
+        $this->mailer->isHTML(true);
+
+        if ($isActive == 1) {
+            $this->mailer->Subject = 'Tài khoản của bạn đã được kích hoạt thành công';
+            $statusText = 'kích hoạt';
+            $color = '#28a745';
+        } else {
+            $this->mailer->Subject = 'Tài khoản của bạn đã bị tạm khóa';
+            $statusText = 'tạm khóa';
+            $color = '#dc3545';
         }
+
+        $this->mailer->Body = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 30px; border: 1px solid #ddd; border-radius: 10px;'>
+                <h2 style='color: {$color};'>Thông báo trạng thái tài khoản</h2>
+                <p>Xin chào <strong>{$username}</strong>,</p>
+                <p>Tài khoản của bạn đã được <strong style='color: {$color};'>{$statusText}</strong> bởi quản trị viên.</p>
+                <p>Thời gian: " . date('d/m/Y H:i:s') . "</p>
+                <br>
+                <p>Nếu bạn cần hỗ trợ, vui lòng liên hệ qua email hỗ trợ.</p>
+                <hr>
+                <small>Chợ C2C - Hệ thống quản lý</small>
+            </div>
+        ";
+
+        $this->mailer->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Email lỗi: " . $e->getMessage());
+        return false;
     }
+}
     public function sendVerificationCode($to, $username, $code)
 {
     try {

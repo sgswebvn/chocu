@@ -146,6 +146,7 @@ class AdminController
         $topCancelSellers = $this->adminModel->getSellerComparisons('cancellations');
         $topProducts = $this->adminModel->getTopSellingProducts(10);
         $topCategories = $this->adminModel->getTopSellingCategories(5);
+        $potentialSellers = $this->adminModel->detectPotentialSellers(10);
         require_once __DIR__ . '/../Views/admin/dashboard.php';
     }
 
@@ -199,22 +200,29 @@ class AdminController
             $this->redirect('/admin/products');
         }
     }
-    public function users()
-    {
-        $users = $this->adminModel->getAllUsers();
-        require_once __DIR__ . '/../Views/admin/users.php';
-    }
+   public function users()
+{
+    $keyword = $_GET['keyword'] ?? '';
+    $status  = $_GET['status'] ?? '';
 
-    public function searchUsers()
-    {
-        $keyword = $_GET['keyword'] ?? '';
-        $users = $this->adminModel->searchUsers($keyword);
-        require_once __DIR__ . '/../Views/admin/users.php';
-    }
+    $users = $this->adminModel->getAllUsers($keyword, $status); 
+
+    require_once __DIR__ . '/../Views/admin/users.php';
+}
+
+  public function searchUsers()
+{
+    $keyword = $_GET['keyword'] ?? '';
+    $status  = $_GET['status'] ?? ''; 
+
+    $users = $this->adminModel->getAllUsers($keyword, $status);
+
+    require_once __DIR__ . '/../Views/admin/users.php';
+}
 
    public function toggleUserStatus($id, $action)
     {
-        $is_active = $action === 'activate' ? 0 : 1; // 0: kích hoạt, 1: tạm khóa
+        $is_active = $action === 'activate' ? 1 : 0;
         try {
             // Lấy thông tin người dùng để lấy email và username
             $user = $this->adminModel->getUserById($id);
@@ -229,7 +237,7 @@ class AdminController
                 $this->emailService->sendActivationEmail(
                     $user['email'],
                     $user['username'],
-                    $is_active === 0 // true nếu kích hoạt, false nếu tạm khóa
+                    $is_active
                 );
                 
                 Session::set('success', 'Cập nhật trạng thái người dùng thành công!');
@@ -288,50 +296,48 @@ class AdminController
         require_once __DIR__ . '/../Views/admin/view_product.php';
         }
     public function create_accountant()
-    {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Chỉ xử lý POST + AJAX
-            header('Content-Type: application/json');
+{
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        header('Content-Type: application/json');
 
-            $username = trim($_POST['username'] ?? '');
-            $email    = trim($_POST['email'] ?? '');
-            $password = $_POST['password'] ?? '';
+        $username = trim($_POST['username'] ?? '');
+        $email    = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
 
-            if (empty($username) || empty($email) || empty($password)) {
-                echo json_encode(['success' => false, 'message' => 'Vui lòng điền đầy đủ thông tin']);
-                exit;
-            }
-
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                echo json_encode(['success' => false, 'message' => 'Email không hợp lệ']);
-                exit;
-            }
-
-            if (strlen($password) < 6) {
-                echo json_encode(['success' => false, 'message' => 'Mật khẩu phải từ 6 ký tự']);
-                exit;
-            }
-
-            // Kiểm tra email đã tồn tại chưa
-            $stmt = $this->db->prepare("SELECT id FROM users WHERE email = ?");
-            $stmt->execute([$email]);
-            if ($stmt->fetch()) {
-                echo json_encode(['success' => false, 'message' => 'Email đã được sử dụng']);
-                exit;
-            }
-
-            $hashed = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $this->db->prepare("INSERT INTO users (username, email, password, role, created_at) VALUES (?, ?, ?, 'accountant', NOW())");
-            $result = $stmt->execute([$username, $email, $hashed]);
-
-            if ($result) {
-                echo json_encode(['success' => true, 'message' => 'Tạo tài khoản kế toán thành công!']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Lỗi hệ thống, vui lòng thử lại']);
-            }
+        if (empty($username) || empty($email) || empty($password)) {
+            echo json_encode(['success' => false, 'message' => 'Vui lòng điền đầy đủ thông tin']);
             exit;
         }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            echo json_encode(['success' => false, 'message' => 'Email không hợp lệ']);
+            exit;
+        }
+
+        if (strlen($password) < 6) {
+            echo json_encode(['success' => false, 'message' => 'Mật khẩu phải từ 6 ký tự']);
+            exit;
+        }
+
+        // DÙNG MODEL USER ĐÃ CÓ SẴN → AN TOÀN + KHÔNG LỖI DB
+        if ($this->userModel->findByEmail($email)) {
+            echo json_encode(['success' => false, 'message' => 'Email đã được sử dụng']);
+            exit;
+        }
+
+        $success = $this->userModel->registerUser($username, $email, $password, 1, 'accountant');
+
+        if ($success) {
+            echo json_encode(['success' => true, 'message' => 'Tạo tài khoản kế toán thành công!']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Lỗi hệ thống, vui lòng thử lại']);
+        }
+        exit;
     }
+
+    // Nếu không phải POST → hiển thị form (nếu cần)
+    $this->accountantsList();
+}
     public function accountantsList() {
 
         require_once __DIR__ . '/../Views/admin/accountant/create.php';

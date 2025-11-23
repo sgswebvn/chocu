@@ -246,79 +246,91 @@
         <!-- Top Sellers -->
         <div class="card mb-4">
             <div class="card-body p-4">
-                <h5 class="card-title fw-bold">Top 10 người bán tiềm năng</h5>
-                <div class="table-responsive">
-                    <table class="table table-hover table-borderless">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Tên người bán</th>
-                                <th>Doanh thu (VNĐ)</th>
-                                <th>Tăng trưởng doanh thu (%)</th>
-                                <th>Đánh giá trung bình</th>
-                                <th>Tỷ lệ hủy đơn (%)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($topSellers)): ?>
-                                <tr>
-                                    <td colspan="6" class="text-center py-4">Không có người bán nào!</td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($topSellers as $seller): ?>
-                                    <tr>
-                                        <td><?php echo htmlspecialchars($seller['id']); ?></td>
-                                        <td><?php echo htmlspecialchars($seller['username']); ?></td>
-                                        <td><?php echo number_format($seller['revenue'], 0, ',', '.'); ?></td>
-                                        <td><?php echo number_format($seller['revenue_growth'], 2); ?></td>
-                                        <td><?php echo number_format($seller['avg_rating'], 1); ?></td>
-                                        <td><?php echo number_format($seller['cancel_rate'], 2); ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
+               <h5 class="card-title fw-bold text-success">Top 10 người bán tiềm năng</h5>
+<div class="table-responsive">
+    <table class="table table-hover table-borderless">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Tên người bán</th>
+                <th>Doanh thu 30 ngày (VNĐ)</th>
+                <th>Số đơn hoàn thành</th>
+                <th>Đánh giá TB</th>
+                <th>Tỷ lệ hủy</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (empty($potentialSellers)): ?>
+                <tr><td colspan="6" class="text-center text-muted">Chưa có người bán nào đạt tiêu chí</td></tr>
+            <?php else: foreach ($potentialSellers as $s): ?>
+                <tr class="table-success">
+                    <td><?= $s['id'] ?></td>
+                    <td><strong><?= htmlspecialchars($s['username']) ?></strong></td>
+                    <td class="text-success fw-bold"><?= number_format($s['revenue_30d']) ?></td>
+                    <td><?= $s['total_delivered'] ?></td>
+                    <td><span class="badge bg-success"><?= number_format($s['avg_rating'], 1) ?> ★</span></td>
+                    <td><?= number_format($s['cancel_rate'], 1) ?>%</td>
+                </tr>
+            <?php endforeach; endif; ?>
+        </tbody>
+    </table>
+</div>
             </div>
         </div>
-        <!-- Violating Sellers -->
-        <div class="card">
-            <div class="card-body p-4">
-                <h5 class="card-title fw-bold">Người bán vi phạm</h5>
-                <div class="table-responsive">
-                    <table class="table table-hover table-borderless">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Tên người bán</th>
-                                <th>Đánh giá trung bình</th>
-                                <th>Số đơn hủy</th>
-                                <th>Số báo cáo</th>
-                                <th>Tỷ lệ báo cáo (%)</th>
+       <!-- Violating Sellers -->
+<div class="card mb-4">
+    <div class="card-body p-4">
+        <h5 class="card-title fw-bold">Người bán vi phạm (cần xử lý)</h5>
+        <div class="table-responsive">
+            <table class="table table-hover table-borderless align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Người bán</th>
+                        <th>Đánh giá TB</th>
+                        <th>Số đơn hủy</th>
+                        <th>Tỷ lệ hủy (%)</th>
+                        <th>Số báo cáo</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($violatingSellers)): ?>
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-success">
+                                Không có người bán nào vi phạm
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($violatingSellers as $seller): ?>
+                            <tr class="<?= $seller['reports_count'] >= 3 || $seller['cancellations'] >= 5 ? 'table-danger' : 'table-warning' ?>">
+                                <td><?= htmlspecialchars($seller['id']) ?></td>
+                                <td>
+                                    <a href="/admin/users/view/<?= $seller['id'] ?>" class="text-decoration-none fw-500">
+                                        <?= htmlspecialchars($seller['username']) ?>
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge <?= $seller['avg_rating'] < 4.0 ? 'bg-danger' : 'bg-warning' ?>">
+                                        <?= number_format($seller['avg_rating'], 1) ?> ★
+                                    </span>
+                                </td>
+                                <td class="text-danger fw-bold"><?= $seller['cancellations'] ?></td>
+                                <td><?= $seller['cancel_rate'] ?>%</td>
+                                <td class="text-danger fw-bold"><?= $seller['reports_count'] ?></td>
+                                <td>
+                                    <a href="/admin/users/view/<?= $seller['id'] ?>" class="btn btn-sm btn-outline-primary">
+                                        Xem chi tiết
+                                    </a>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($violatingSellers)): ?>
-                                <tr>
-                                    <td colspan="6" class="text-center py-4">Không có người bán vi phạm!</td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($violatingSellers as $seller): ?>
-                                    <tr>
-                                        <td><?php echo htmlspecialchars($seller['id']); ?></td>
-                                        <td><?php echo htmlspecialchars($seller['username']); ?></td>
-                                        <td><?php echo number_format($seller['avg_rating'], 1); ?></td>
-                                        <td><?php echo htmlspecialchars($seller['cancellations']); ?></td>
-                                        <td><?php echo htmlspecialchars($seller['reports']); ?></td>
-                                        <td><?php echo number_format($seller['report_rate'], 2); ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
         </div>
+    </div>
+</div>
     </main>
     <?php include __DIR__ . '/layouts/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>

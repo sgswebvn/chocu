@@ -58,4 +58,22 @@ class Cart
         $stmt = $this->db->prepare("DELETE FROM cart WHERE user_id = ?");
         return $stmt->execute([$userId]);
     }
+        public function getSelectedItems($userId, $productIds)
+    {
+        if (empty($productIds) || !is_array($productIds)) {
+            return [];
+        }
+
+        $placeholders = str_repeat('?,', count($productIds) - 1) . '?';
+        $sql = "SELECT c.*, p.title, p.price, p.image 
+                FROM cart c 
+                JOIN products p ON c.product_id = p.id 
+                WHERE c.user_id = ? AND c.product_id IN ($placeholders)";
+
+        $stmt = $this->db->prepare($sql);
+        $params = array_merge([$userId], $productIds);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
 }

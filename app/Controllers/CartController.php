@@ -74,22 +74,70 @@ class CartController
 
     public function index()
     {
-        // Logic hiển thị giỏ hàng
-        $userId = Session::get('user')['id'];
-        $cartItems = $this->cartModel->getByUser($userId);
+      if (!Session::get('user')) {
+        Session::set('error', 'Vui lòng đăng nhập để thanh toán!');
+        header('Location: /login');
+        exit;
+    }
+
+    $userId = Session::get('user')['id'];
+    $selectedIds = $_GET['selected_items'] ?? [];
+
+    $cartModel = new \App\Models\Cart();
+
+    if (empty($selectedIds)) {
+        // Nếu không chọn gì → lấy tất cả
+        $cartItems = $cartModel->getByUser($userId);
+    } else {
+        // Chỉ lấy những sản phẩm được chọn
+        $cartItems = $cartModel->getSelectedItems($userId, $selectedIds);
+    }
         require_once __DIR__ . '/../Views/cart/index.php';
     }
 
     public function remove($id)
-    {
-        // Logic xóa sản phẩm khỏi giỏ hàng
-        $userId = Session::get('user')['id'];
-        if ($this->cartModel->remove($userId, $id)) {
-            Session::set('success', 'Sản phẩm đã được xóa khỏi giỏ hàng!');
-        } else {
-            Session::set('error', 'Không thể xóa sản phẩm khỏi giỏ hàng!');
-        }
-        header('Location: /cart');
+{
+    header('Content-Type: application/json'); // BẮT BUỘC PHẢI CÓ DÒNG NÀY!
+
+    if (!Session::get('user')) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Bạn cần đăng nhập!'
+        ]);
         exit;
     }
+
+    $userId = Session::get('user')['id'];
+
+    if ($this->cartModel->remove($userId, $id)) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Đã xóa sản phẩm khỏi giỏ hàng!'
+        ]);
+    } else {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Không thể xóa sản phẩm!'
+        ]);
+    }
+    exit;
+}
+    public function getSelectedItems($userId, array $productIds)
+{
+    if (empty($productIds)) {
+        return $this->getByUser($userId);
+    }
+
+    $placeholders = str_repeat('?,', count($productIds) - 1) . '?';
+    $sql = "SELECT c.*, p.title, p.image, p.price 
+            FROM cart c 
+            JOIN products p ON c.product_id = p.id 
+            WHERE c.user_id = ? AND c.product_id IN ($placeholders)";
+
+    $stmt = $this->db->prepare($sql);
+    $params = array_merge([$userId], $productIds);
+    $stmt->execute($params);
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 }

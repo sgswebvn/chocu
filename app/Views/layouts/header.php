@@ -13,6 +13,8 @@ if (!$user) {
   $userLink = '/login';
 } elseif (!empty($user['is_partner_paid'])) {
   $userLink = '/partners';
+}  elseif (isset($user['role']) && $user['role'] === 'accountant') {
+    $userLink = '/accountant/dashboard';
 } else {
   $userLink = '/profile';
 }
@@ -486,10 +488,12 @@ $unreadCount = $currentUserId ? $notificationModel->getUnreadCount($currentUserI
             </div>
 
             <div class="search-popup js-hidden-content">
-              <form action="#" method="GET" class="search-field container">
+              <form action="/products" method="GET" class="search-field container">
                 <p class="text-uppercase text-secondary fw-medium mb-4">Bạn muốn tìm gì ?</p>
                 <div class="position-relative">
-                  <input class="search-field__input search-popup__input w-100 fw-medium" type="text" name="search-keyword" placeholder="Tìm kiếm sản phẩm" />
+                  <input class="search-field__input search-popup__input w-100 fw-medium"
+                  value="<?php echo htmlspecialchars($_GET['keyword'] ?? ''); ?>"
+                   type="text" name="keyword" placeholder="Tìm kiếm sản phẩm" />
                   <button class="btn-icon search-popup__submit" type="submit">
                     <svg class="d-block" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <use href="#icon_search" />

@@ -13,13 +13,14 @@ class Product
         $this->db = (new Database())->getConnection();
     }
 
+    // ĐÃ THÊM: deleted_at IS NULL
     public function getAll($filter = 'latest', $keyword = '', $limit = 12, $offset = 0, $categoryId = '')
     {
         $sql = "SELECT p.*, u.username, u.is_partner_paid, c.name as category_name 
                 FROM products p 
                 LEFT JOIN users u ON p.user_id = u.id 
                 LEFT JOIN categories c ON p.category_id = c.id 
-                WHERE p.status = 'approved'";
+                WHERE p.status = 'approved' AND p.deleted_at IS NULL";
 
         $params = [];
 
@@ -54,9 +55,10 @@ class Product
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
+    // ĐÃ THÊM: deleted_at IS NULL
     public function countAll($keyword = '')
     {
-        $sql = "SELECT COUNT(*) as total FROM products WHERE status = 'approved'";
+        $sql = "SELECT COUNT(*) as total FROM products WHERE status = 'approved' AND deleted_at IS NULL";
         $params = [];
 
         if (!empty($keyword)) {
@@ -76,7 +78,7 @@ class Product
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
-                                    WHERE p.id = ?");
+                                    WHERE p.id = ? AND p.deleted_at IS NULL");
         $stmt->execute([$id]);
         return $stmt->fetch(\PDO::FETCH_ASSOC);
     }
@@ -87,7 +89,7 @@ class Product
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
-                                    WHERE p.user_id = ? 
+                                    WHERE p.user_id = ? AND p.deleted_at IS NULL
                                     ORDER BY p.created_at DESC");
         $stmt->execute([$userId]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -99,7 +101,7 @@ class Product
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
-                                    WHERE p.id = ?");
+                                    WHERE p.id = ? AND p.deleted_at IS NULL");
         $stmt->execute([$id]);
         return $stmt->fetch(\PDO::FETCH_ASSOC);
     }
@@ -110,7 +112,7 @@ class Product
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
-                                    WHERE p.id = ?");
+                                    WHERE p.id = ? AND p.deleted_at IS NULL");
         $stmt->execute([$id]);
         return $stmt->fetch(\PDO::FETCH_ASSOC);
     }
@@ -122,7 +124,7 @@ class Product
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
-                                    WHERE p.status = 'approved' 
+                                    WHERE p.status = 'approved' AND p.deleted_at IS NULL
                                     AND (p.title LIKE ? OR p.description LIKE ?)");
         $stmt->execute([$keyword, $keyword]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -141,7 +143,7 @@ class Product
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
-                                    WHERE p.status = 'approved' 
+                                    WHERE p.status = 'approved' AND p.deleted_at IS NULL
                                     ORDER BY p.views DESC LIMIT 8");
         $stmt->execute();
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -160,13 +162,13 @@ class Product
 
     public function delete($id)
     {
-        $stmt = $this->db->prepare("DELETE FROM products WHERE id = ?");
+        $stmt = $this->db->prepare("UPDATE products SET deleted_at = NOW() WHERE id = ?");
         return $stmt->execute([$id]);
     }
 
     public function incrementViews($id)
     {
-        $stmt = $this->db->prepare("UPDATE products SET views = views + 1 WHERE id = ?");
+        $stmt = $this->db->prepare("UPDATE products SET views = views + 1 WHERE id = ? AND deleted_at IS NULL");
         return $stmt->execute([$id]);
     }
 
@@ -176,7 +178,7 @@ class Product
                                     FROM products p 
                                     LEFT JOIN users u ON p.user_id = u.id 
                                     LEFT JOIN categories c ON p.category_id = c.id 
-                                    WHERE p.user_id = ?");
+                                    WHERE p.user_id = ? AND p.deleted_at IS NULL");
         $stmt->execute([$userId]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }

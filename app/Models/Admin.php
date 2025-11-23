@@ -69,11 +69,34 @@ class Admin
         return $stmt->execute([$status, $id]);
     }
 
-    public function getAllUsers()
-    {
-        $stmt = $this->db->query("SELECT * FROM users");
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+   public function getAllUsers($keyword = '', $status = '')
+{
+    $sql = "SELECT id, username, email, role, is_active, created_at FROM users WHERE 1=1";
+    $params = [];
+
+    // 1. Tìm kiếm từ khóa
+    if (!empty($keyword)) {
+        $sql .= " AND (username LIKE ? OR email LIKE ?)";
+        $params[] = "%$keyword%";
+        $params[] = "%$keyword%";
     }
+
+    // 2. Lọc trạng thái - QUAN TRỌNG: admin luôn được hiển thị dù lọc gì
+    if ($status === 'active') {
+        $sql .= " AND (role = 'admin' OR (role != 'admin' AND is_active = 1))";
+    } elseif ($status === 'banned') {
+        $sql .= " AND (role = 'admin' OR (role != 'admin' AND is_active = 0))";
+    }
+    // Nếu $status == '' → không thêm gì → lấy hết (bao gồm cả admin)
+
+    $sql .= " ORDER BY 
+                CASE WHEN role = 'admin' THEN 0 ELSE 1 END, 
+                created_at DESC";
+
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+}
 
     public function toggleUserStatus($id, $is_active)
     {
@@ -185,71 +208,121 @@ class Admin
         return $result;
     }
 
-    public function detectPotentialSellers($limit = 10)
-    {
-        $query = "SELECT u.id, u.username, 
-                  COALESCE(SUM(t.amount), 0) as revenue, 
-                  COALESCE(AVG(ur.rating), 0) as avg_rating, 
-                  COALESCE(
-                      (SELECT COUNT(o2.id) FROM orders o2 WHERE o2.seller_id = u.id AND o2.status = 'cancelled') * 100.0 / 
-                      NULLIF((SELECT COUNT(o3.id) FROM orders o3 WHERE o3.seller_id = u.id), 0),
-                      0
-                  ) as cancel_rate,
-                  COALESCE(
-                      ((SELECT COALESCE(SUM(t2.amount), 0) FROM transactions t2 JOIN orders o2 ON t2.order_id = o2.id WHERE o2.seller_id = u.id AND t2.status = 'completed' AND DATE_FORMAT(t2.created_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m'))
-                       -
-                       (SELECT COALESCE(SUM(t3.amount), 0) FROM transactions t3 JOIN orders o3 ON t3.order_id = o3.id WHERE o3.seller_id = u.id AND t3.status = 'completed' AND DATE_FORMAT(t3.created_at, '%Y-%m') = DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 MONTH), '%Y-%m'))
-                      ) * 100.0 / NULLIF((SELECT COALESCE(SUM(t3.amount), 0) FROM transactions t3 JOIN orders o3 ON t3.order_id = o3.id WHERE o3.seller_id = u.id AND t3.status = 'completed' AND DATE_FORMAT(t3.created_at, '%Y-%m') = DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 MONTH), '%Y-%m')), 0),
-                      0
-                  ) as growth
-                  FROM users u 
-                  LEFT JOIN orders o ON o.seller_id = u.id 
-                  LEFT JOIN transactions t ON t.order_id = o.id AND t.status = 'completed'
-                  LEFT JOIN userrating ur ON ur.rated_id = u.id
-                  WHERE u.role = 'user' 
-                  GROUP BY u.id, u.username
-                  HAVING revenue > 0 AND avg_rating >= 0 AND cancel_rate < 100 AND growth >= 0
-                  ORDER BY revenue DESC 
-                  LIMIT :limit";
+   public function detectPotentialSellers($limit = 10)
+{
+    $query = "
+        SELECT 
+            u.id,
+            u.username,
+            -- Doanh thu CHỈ trong 30 ngày gần nhất
+            COALESCE(SUM(CASE 
+                WHEN o.status = 'delivered' 
+                AND o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) 
+                THEN o.total_price ELSE 0 
+            END), 0) AS revenue_30d,
 
-        error_log("detectPotentialSellers Query: $query");
-        $stmt = $this->db->prepare($query);
-        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        error_log("detectPotentialSellers Result: " . print_r($result, true));
-        return $result;
+            -- Số đơn hoàn thành trong 30 ngày gần nhất
+            COUNT(CASE WHEN o.status = 'delivered' 
+                AND o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) 
+                THEN 1 END) AS orders_30d,
+
+            -- Tổng đơn hoàn thành (để kiểm tra có hoạt động không)
+            COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) AS total_delivered,
+
+            -- Đánh giá trung bình
+            COALESCE(AVG(sr.rating), 5.0) AS avg_rating,
+
+            -- Tỷ lệ hủy chính xác 100% (chỉ tính đơn delivered + cancelled)
+            ROUND(
+                COALESCE(
+                    SUM(CASE WHEN o.status = 'cancelled' THEN 1 ELSE 0 END) * 100.0 /
+                    NULLIF(
+                        SUM(CASE WHEN o.status IN ('delivered', 'cancelled') THEN 1 ELSE 0 END), 0
+                    ), 0
+                ), 2
+            ) AS cancel_rate
+
+        FROM users u
+        LEFT JOIN orders o 
+            ON o.seller_id = u.id 
+            AND o.status IN ('delivered', 'cancelled')
+        LEFT JOIN seller_ratings sr ON sr.seller_id = u.id
+        WHERE u.role IN ('user', 'partners')
+          AND u.is_active = 1
+        GROUP BY u.id, u.username
+        HAVING 
+            revenue_30d >= 5000000                    -- ≥ 5 triệu trong 30 ngày gần nhất
+            AND orders_30d >= 3                        -- ít nhất 3 đơn trong 30 ngày
+            AND avg_rating >= 4.5                      -- đánh giá cao
+            AND cancel_rate <= 25                      -- hủy không quá 25%
+        ORDER BY revenue_30d DESC, orders_30d DESC
+        LIMIT :limit
+    ";
+
+    $stmt = $this->db->prepare($query);
+    $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+}
+
+    public function detectViolatingSellers($limit = null)
+{
+    $query = "
+        SELECT 
+            u.id, 
+            u.username,
+            u.role,
+            COALESCE(AVG(sr.rating), 5.0) AS avg_rating,
+            
+            -- Đếm đúng số đơn (không DISTINCT)
+            COUNT(o.id) AS total_orders,
+            
+            -- Số đơn hủy
+            COALESCE(SUM(CASE WHEN o.status = 'cancelled' THEN 1 ELSE 0 END), 0) AS cancellations,
+            
+            -- ĐẾM ĐÚNG SỐ BÁO CÁO CỦA SELLER (có thể >1)
+            (SELECT COUNT(*) FROM reports r2 WHERE r2.reported_user_id = u.id) AS reports_count
+
+        FROM users u
+        LEFT JOIN seller_ratings sr ON sr.seller_id = u.id
+        LEFT JOIN orders o ON o.seller_id = u.id 
+            AND o.status IN ('delivered', 'cancelled', 'pending', 'shipped')
+        WHERE u.role IN ('user', 'partners')
+          AND u.is_active = 1
+        GROUP BY u.id, u.username, u.role
+        HAVING 
+            (SELECT COUNT(*) FROM reports r2 WHERE r2.reported_user_id = u.id) >= 1      -- có ít nhất 1 báo cáo
+            OR cancellations >= 3
+            OR (total_orders > 0 AND avg_rating < 4.0)
+        ORDER BY 
+            reports_count DESC, 
+            cancellations DESC, 
+            avg_rating ASC
+    ";
+
+    if ($limit !== null) {
+        $query .= " LIMIT :limit";
     }
 
-    public function detectViolatingSellers($limit = 10)
-    {
-        $query = "SELECT u.id, u.username, 
-              COALESCE(AVG(ur.rating), 0) as avg_rating, 
-              COALESCE((SELECT COUNT(o2.id) FROM orders o2 WHERE o2.seller_id = u.id AND o2.status = 'cancelled'), 0) as cancellations,
-              COALESCE((SELECT COUNT(r.id) FROM reports r WHERE r.reported_user_id = u.id), 0) as reports,
-              COALESCE(
-                  (SELECT COUNT(r2.id) * 100.0 / NULLIF((SELECT COUNT(o3.id) FROM orders o3 WHERE o3.seller_id = u.id), 0)
-                   FROM reports r2 
-                   WHERE r2.reported_user_id = u.id),
-                  0
-              ) as report_rate
-              FROM users u 
-              LEFT JOIN userrating ur ON ur.rated_id = u.id
-              LEFT JOIN reports r ON r.reported_user_id = u.id
-              WHERE u.role = 'user'
-              GROUP BY u.id, u.username 
-              HAVING reports > 0 OR cancellations > 0 OR avg_rating < 4.5
-              ORDER BY reports DESC 
-              LIMIT :limit";
-
-        error_log("detectViolatingSellers Query: $query");
-        $stmt = $this->db->prepare($query);
+    $stmt = $this->db->prepare($query);
+    if ($limit !== null) {
         $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        error_log("detectViolatingSellers Result: " . print_r($result, true));
-        return $result;
     }
+    $stmt->execute();
+
+    $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    foreach ($results as &$seller) {
+        $delivered   = $seller['total_orders'] - $seller['cancellations'];
+        $relevant    = $delivered + $seller['cancellations'];
+        $seller['cancel_rate'] = $relevant > 0 
+            ? round(($seller['cancellations'] / $relevant) * 100, 2)
+            : 0;
+    }
+    unset($seller);
+
+    return $results;
+}
    public function getTopSellingProducts($limit = 10)
     {
         $query = "SELECT p.id, p.title, p.image, u.is_partner_paid, c.name AS category_name, u.username AS seller_name, 

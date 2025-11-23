@@ -21,12 +21,16 @@ class AccountantController
 
     public function dashboard()
     {
+        $user = Session::get('user');
+
         $pending = $this->withdrawalModel->getPendingRequests();
         require_once __DIR__ . '/../Views/accountant/dashboard.php';
     }
 
     public function history()
     {
+        $user = Session::get('user');
+
         $processed = $this->withdrawalModel->getProcessedRequests();
         require_once __DIR__ . '/../Views/accountant/history.php';
     }

@@ -34,20 +34,32 @@ class CheckoutController
         );
     }
 
-    public function index()
-    {
-        if (!Session::get('user')) {
-            header('Location: /login');
-            exit;
-        }
-        $cartItems = $this->cartModel->getByUser(Session::get('user')['id']);
-        if (empty($cartItems)) {
-            Session::set('error', 'Giỏ hàng trống!');
-            header('Location: /cart');
-            exit;
-        }
-        require_once __DIR__ . '/../Views/checkout/index.php';
+   public function index()
+{
+    if (!Session::get('user')) {
+        header('Location: /login');
+        exit;
     }
+
+    $userId = Session::get('user')['id'];
+    $selectedItems = $_GET['selected_items'] ?? [];
+
+    // Nếu có chọn sản phẩm cụ thể → chỉ lấy những món đó
+    if (!empty($selectedItems) && is_array($selectedItems)) {
+        $cartItems = $this->cartModel->getSelectedItems($userId, $selectedItems);
+    } else {
+        // Nếu không chọn gì → lấy tất cả (hành vi cũ)
+        $cartItems = $this->cartModel->getByUser($userId);
+    }
+
+    if (empty($cartItems)) {
+        Session::set('error', 'Không có sản phẩm nào để thanh toán!');
+        header('Location: /cart');
+        exit;
+    }
+
+    require_once __DIR__ . '/../Views/checkout/index.php';
+}
 
     public function process()
     {

@@ -32,7 +32,7 @@ DB_PASS=
 APP_URL=http://localhost:8080
 
 # Cách Khởi chạy website 
-
+# php run-websocket.php
 # ctrl + ` 
 # cd public
 # php -S localhost:8080

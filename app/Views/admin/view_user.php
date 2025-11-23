@@ -104,23 +104,7 @@
                 </script>
                 <?php \App\Helpers\Session::unset('error'); ?>
             <?php endif; ?>
-            <div class="card mb-4">
-                <div class="card-body p-4">
-                    <h5 class="card-title fw-bold">Chi tiết người dùng</h5>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>ID:</strong> <?php echo htmlspecialchars($user['id']); ?></p>
-                            <p><strong>Tên người dùng:</strong> <?php echo htmlspecialchars($user['username']); ?></p>
-                            <p><strong>Email:</strong> <?php echo htmlspecialchars($user['email']); ?></p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Trạng thái:</strong> <?php echo htmlspecialchars($user['is_active'] == 0 ? 'Hoạt động' : 'Bị khóa'); ?></p>
-                            <p><strong>Vai trò:</strong> <?php echo htmlspecialchars($user['role'] ?? 'user'); ?></p>
-                            <p><strong>Ngày tạo:</strong> <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($user['created_at']))); ?></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            
             <div class="card mb-4">
                 <div class="card-body p-4">
                     <h5 class="card-title fw-bold">Báo cáo liên quan</h5>
