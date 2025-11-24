@@ -3,19 +3,29 @@
 namespace App\Models;
 
 use App\Config\Database;
+use App\Models\Order;
 
 class Admin
 {
     private $db;
+    private $orderModel;
 
     public function __construct()
     {
         $this->db = (new Database())->getConnection();
+        $this->orderModel = new Order();
+
     }
 
     public function getStats()
     {
+    $orderModel = new Order();
         $stats = [];
+        $stats = [
+            'admin_total_orders'   => $orderModel->getAdminOrderCount(),
+            'admin_total_revenue'  => $orderModel->getAdminRevenue(true), 
+            'admin_pending_orders' => $orderModel->getAdminRevenue(false) - $orderModel->getAdminRevenue(true), // tạm tính
+        ];
         $stats['products'] = $this->db->query("SELECT COUNT(*) as count FROM products")->fetch(\PDO::FETCH_ASSOC)['count'];
         $stats['users'] = $this->db->query("SELECT COUNT(*) as count FROM users")->fetch(\PDO::FETCH_ASSOC)['count'];
         $stats['orders'] = $this->db->query("SELECT COUNT(*) as count FROM orders")->fetch(\PDO::FETCH_ASSOC)['count'];
@@ -56,7 +66,7 @@ class Admin
 
     public function getAllProducts()
     {
-        $stmt = $this->db->query("SELECT * FROM products");
+        $stmt = $this->db->query("SELECT * FROM products WHERE deleted_at IS NULL");
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 

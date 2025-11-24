@@ -49,7 +49,7 @@ class Order
             JOIN products p ON o.product_id = p.id 
             JOIN users u ON o.buyer_id = u.id 
             JOIN users us ON o.seller_id = us.id
-            WHERE o.seller_id = ? AND us.is_partner_paid = 1
+            WHERE o.seller_id = ? 
             ORDER BY o.created_at DESC
         ");
         $stmt->execute([$sellerId]);
@@ -89,7 +89,54 @@ class Order
             return false;
         }
     }
+public function getAdminOrderCount()
+    {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) AS total 
+                FROM orders o
+                JOIN products p ON o.product_id = p.id
+                JOIN users u ON p.seller_id = u.id
+                WHERE u.role = 'admin'
+            ");
+            $stmt->execute();
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return (int)($result['total'] ?? 0);
+        } catch (\PDOException $e) {
+            error_log("Error counting admin orders: " . $e->getMessage());
+            return 0;
+        }
+    }
 
+    /**
+     * Lấy tổng doanh thu từ các đơn hàng mà admin là người bán
+     * (bao gồm tất cả trạng thái hoặc chỉ delivered tùy bạn chọn)
+     */
+    public function getAdminRevenue($onlyDelivered = true)
+    {
+        try {
+            $sql = "
+                SELECT COALESCE(SUM(o.total_price), 0) AS revenue
+                FROM orders o
+                JOIN products p ON o.product_id = p.id
+                JOIN users u ON p.seller_id = u.id
+                WHERE u.role = 'admin'
+            ";
+
+            // Nếu chỉ tính đơn đã giao thành công (đúng thực tế doanh thu thực nhận)
+            if ($onlyDelivered) {
+                $sql .= " AND o.status = 'delivered'";
+            }
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return (float)$result['revenue'];
+        } catch (\PDOException $e) {
+            error_log("Error calculating admin revenue: " . $e->getMessage());
+            return 0.0;
+        }
+    }
     public function create($userId, $sellerId, $productId, $quantity, $totalPrice)
     {
         try {
@@ -131,6 +178,7 @@ class Order
             return false;
         }
     }
+
 
     public function createPayment($orderId, $paymentMethod, $amount, $transactionId = null)
     {

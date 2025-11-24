@@ -37,7 +37,6 @@ APP_URL=http://localhost:8080
 # cd public
 # php -S localhost:8080
 
-
 # Xem các route 
 # Routes/web.php
 

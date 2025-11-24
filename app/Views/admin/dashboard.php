@@ -141,7 +141,7 @@
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Đơn hàng</h5>
-                        <p class="card-text"><?php echo htmlspecialchars($stats['orders']); ?></p>
+                        <p class="card-text"><?php echo htmlspecialchars($stats['admin_total_orders']); ?></p>
                     </div>
                 </div>
             </div>
@@ -149,7 +149,7 @@
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Doanh thu</h5>
-                        <p class="card-text"><?php echo number_format($stats['revenue'], 0, ',', '.'); ?> VNĐ</p>
+                        <p class="card-text"><?php echo number_format($stats['admin_total_revenue'], 0, ',', '.'); ?> VNĐ</p>
                     </div>
                 </div>
             </div>
