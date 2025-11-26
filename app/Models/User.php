@@ -255,4 +255,10 @@ class User
             $data['bank_code'] ?? ''
         ]);
     }
+    public function activateUser($email)
+{
+    $sql = "UPDATE users SET is_active = 1, email_verified_at = NOW() WHERE email = ?";
+    $stmt = $this->db->prepare($sql);
+    return $stmt->execute([$email]);
+}
 }

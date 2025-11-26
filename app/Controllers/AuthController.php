@@ -117,48 +117,129 @@ private function jsonResponse($success, $message, $extra = [])
     ], $extra));
     exit;
 }
-    public function partnerRegister()
-    {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $username = $_POST['username'] ?? '';
-            $email = $_POST['email'] ?? '';
-            $password = $_POST['password'] ?? '';
-            $is_active = 0;
-            $role = 'partners';
+   public function partnerRegister()
+{
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $action = $_POST['action'] ?? '';
 
-            if (empty($username) || empty($email) || empty($password)) {
-                $response = ['success' => false, 'message' => 'Vui lòng điền đầy đủ các trường!'];
-            } elseif ($this->userModel->registerUser($username, $email, $password, $is_active, $role)) {
-                $user = $this->userModel->findByEmail($email);
-                NotificationServer::sendNotification(
-                    $user['id'],
-                    'auth',
-                    [
-                        'title' => 'Chào mừng đối tác',
-                        'message' => "Chào mừng bạn đến với Chợ C2C, $username! Vui lòng mua gói nâng cấp để trở thành đối tác chính thức.",
-                        'link' => '/upgrade'
-                    ]
-                );
-                $response = ['success' => true, 'message' => 'Đăng ký đối tác thành công! Vui lòng mua gói nâng cấp.', 'redirect' => '/upgrade'];
-            } else {
-                $response = ['success' => false, 'message' => 'Đăng ký thất bại! Email hoặc tên người dùng đã tồn tại.'];
-            }
-
-            if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-                header('Content-Type: application/json');
-                echo json_encode($response);
-                exit;
-            }
-
-            Session::set($response['success'] ? 'success' : 'error', $response['message']);
-            if ($response['success']) {
-                header('Location: /upgrade');
-                exit;
-            }
+        // Bước 1: Gửi OTP
+        if ($action === 'send_otp') {
+            $this->handlePartnerSendOtp();
         }
 
-        require_once __DIR__ . '/../Views/auth/partner_register.php';
+        // Bước 2: Xác minh OTP + Hoàn tất đăng ký đối tác
+        if ($action === 'verify_otp') {
+            $this->handlePartnerVerifyOtp();
+        }
     }
+
+    // Hiển thị form đăng ký đối tác (bước nhập thông tin)
+    require_once __DIR__ . '/../Views/auth/partner_register.php';
+}
+
+/**
+ * Xử lý gửi OTP cho đăng ký đối tác
+ */
+private function handlePartnerSendOtp()
+{
+    $username = trim($_POST['username'] ?? '');
+    $email    = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+
+    if (empty($username) || empty($email) || empty($password)) {
+        return $this->jsonResponse(false, 'Vui lòng điền đầy đủ thông tin!');
+    }
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return $this->jsonResponse(false, 'Email không hợp lệ!');
+    }
+
+    if ($this->userModel->findByEmail($email)) {
+        return $this->jsonResponse(false, 'Email này đã được đăng ký!');
+    }
+
+    if ($this->userModel->findByUsername($username)) {
+        return $this->jsonResponse(false, 'Tên người dùng đã tồn tại!');
+    }
+
+    // Tạm thời tạo user với trạng thái chưa kích hoạt (is_active = 0)
+    if (!$this->userModel->registerUser($username, $email, $password, 0, 'partners')) {
+        return $this->jsonResponse(false, 'Đăng ký thất bại! Vui lòng thử lại.');
+    }
+
+    $user = $this->userModel->findByEmail($email);
+
+    // Tạo và lưu OTP
+    $otp = sprintf("%06d", mt_rand(0, 999999));
+    if (!$this->userModel->setVerificationCode($email, $otp)) {
+        // Nếu lỗi thì xóa user vừa tạo tạm
+        $this->userModel->deleteUserByEmail($email);
+        return $this->jsonResponse(false, 'Lỗi hệ thống khi lưu mã xác minh!');
+    }
+
+    // Gửi email OTP
+    $emailService = new EmailService();
+    if ($emailService->sendVerificationCode($email, $username, $otp)) {
+        Session::set('pending_verification_email', $email);
+        Session::set('pending_partner_registration', true); // Đánh dấu đây là đăng ký đối tác
+
+        $this->jsonResponse(true, 'Đã gửi mã OTP đến email của bạn!', [
+            'step' => 'verify'
+        ]);
+    } else {
+        // Xóa user nếu gửi mail thất bại
+        $this->userModel->deleteUserByEmail($email);
+        $this->jsonResponse(false, 'Không thể gửi email OTP. Vui lòng thử lại!');
+    }
+}
+
+/**
+ * Xử lý xác minh OTP cho đối tác
+ */
+private function handlePartnerVerifyOtp()
+{
+    $otp   = trim($_POST['otp'] ?? '');
+    $email = Session::get('pending_verification_email');
+
+    if (empty($otp) || empty($email)) {
+        return $this->jsonResponse(false, 'Dữ liệu không hợp lệ!');
+    }
+
+    // Kiểm tra xem có phải đang đăng ký đối tác không
+    if (!Session::get('pending_partner_registration')) {
+        return $this->jsonResponse(false, 'Phiên đăng ký không hợp lệ!');
+    }
+
+    $user = $this->userModel->verifyCode($email, $otp);
+
+    if ($user) {
+        // Xác minh thành công → kích hoạt tài khoản
+        $this->userModel->activateUser($email); // Bạn cần thêm method này trong User model
+
+        Session::unset('pending_verification_email');
+        Session::unset('pending_partner_registration');
+
+        // Gửi thông báo WebSocket (nếu cần)
+        NotificationServer::sendNotification(
+            $user['id'],
+            'auth',
+            [
+                'title' => 'Chào mừng đối tác mới!',
+                'message' => "Chào mừng $user[username]! Vui lòng mua gói nâng cấp để trở thành đối tác chính thức.",
+                'link' => '/upgrade'
+            ]
+        );
+
+        // Đăng nhập luôn cho user
+        Session::set('user', $user);
+
+        $this->jsonResponse(true, 'Đăng ký đối tác thành công! Chào mừng bạn!', [
+            'redirect' => '/upgrade'
+        ]);
+    } else {
+        $this->jsonResponse(false, 'Mã OTP không đúng hoặc đã hết hạn!');
+    }
+}
 
   public function login()
 {

@@ -61,8 +61,9 @@ include __DIR__ . '/../layouts/header.php';
                 </div>
             </form>
         </div>
-
         <div class="text-center mt-4">
+        <h3 ><a href="/partner-register" >Đăng ký tài khoản đối tác </a></h3> 
+<br>
             <span>Đã có tài khoản? </span>
             <a href="/login" class="btn-text">Đăng nhập</a>
         </div>

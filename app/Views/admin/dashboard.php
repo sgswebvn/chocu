@@ -153,6 +153,15 @@
                     </div>
                 </div>
             </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="card">
+                    <div class="card-body">
+<h6 class="text-muted small">Tổng doanh thu toàn hệ thống</h6>
+
+            <p class="card-text"><?php echo number_format($totalSystemRevenue, 0, ',', '.'); ?> VNĐ</p>
+                    </div>
+                </div>
+            </div>
         </div>
         <!-- Revenue Chart -->
         <div class="card mb-4">
@@ -359,10 +368,10 @@
 
             // Revenue Chart
             const revenueData = {
-                day: <?php echo json_encode(array_reverse($revenueByDay)); ?>,
-                month: <?php echo json_encode(array_reverse($revenueByMonth)); ?>,
-                year: <?php echo json_encode(array_reverse($revenueByYear)); ?>
-            };
+    day: <?php echo json_encode($revenueDay); ?>,
+    month: <?php echo json_encode($revenueMonth); ?>,
+    year: <?php echo json_encode($revenueYear); ?>
+};
 
             const ctx = document.getElementById('revenueChart').getContext('2d');
             let revenueChart = new Chart(ctx, {

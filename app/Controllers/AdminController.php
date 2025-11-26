@@ -137,9 +137,10 @@ class AdminController
     public function dashboard()
     {
         $stats = $this->adminModel->getStats();
-        $revenueDay = $this->adminModel->getRevenueByPeriod('day');
-        $revenueMonth = $this->adminModel->getRevenueByPeriod('month');
-        $revenueYear = $this->adminModel->getRevenueByPeriod('year');
+       $revenueDay   = $this->adminModel->getTotalRevenueByPeriod('day');
+$revenueMonth = $this->adminModel->getTotalRevenueByPeriod('month');
+$revenueYear  = $this->adminModel->getTotalRevenueByPeriod('year');
+$totalSystemRevenue = $this->adminModel->getTotalSystemRevenue();
         $topRevenueSellers = $this->adminModel->getSellerComparisons('revenue');
         $topGrowthSellers = $this->adminModel->getSellerComparisons('growth');
         $topRatingSellers = $this->adminModel->getSellerComparisons('ratings');

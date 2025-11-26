@@ -16,7 +16,44 @@ class Admin
         $this->orderModel = new Order();
 
     }
+// Thêm vào class Admin
+public function getTotalRevenueByPeriod($period = 'day')
+{
+    $sql = "";
+    $dateFormat = "";
 
+    if ($period === 'day') {
+        $sql = "SELECT DATE(o.created_at) as period, COALESCE(SUM(o.total_price), 0) as revenue
+                FROM orders o
+                WHERE o.status = 'delivered'
+                  AND o.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                GROUP BY DATE(o.created_at)
+                ORDER BY period ASC";
+    } elseif ($period === 'month') {
+        $sql = "SELECT DATE_FORMAT(o.created_at, '%Y-%m') as period, COALESCE(SUM(o.total_price), 0) as revenue
+                FROM orders o
+                WHERE o.status = 'delivered'
+                  AND o.created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+                GROUP BY DATE_FORMAT(o.created_at, '%Y-%m')
+                ORDER BY period ASC";
+    } elseif ($period === 'year') {
+        $sql = "SELECT YEAR(o.created_at) as period, COALESCE(SUM(o.total_price), 0) as revenue
+                FROM orders o
+                WHERE o.status = 'delivered'
+                  AND o.created_at >= DATE_SUB(CURDATE(), INTERVAL 5 YEAR)
+                GROUP BY YEAR(o.created_at)
+                ORDER BY period ASC";
+    }
+
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute();
+    return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+}
+public function getTotalSystemRevenue()
+{
+    $stmt = $this->db->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'delivered'");
+    return (float)$stmt->fetchColumn();
+}
     public function getStats()
     {
     $orderModel = new Order();
