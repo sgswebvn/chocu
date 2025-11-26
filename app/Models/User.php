@@ -6,7 +6,7 @@ use App\Config\Database;
 
 class User
 {
-    private $db;
+    public $db;
 
     public function __construct()
     {
@@ -166,7 +166,7 @@ class User
             // Lưu OTP khi đăng ký
     public function setVerificationCode($email, $code)
 {
-    $expiresAt = date('Y-m-d H:i:s', strtotime('+5 minutes'));
+    $expiresAt = date('Y-m-d H:i:s', strtotime('+10 minutes')); // tăng thời gian lên 10 phút cho dễ test
 
     $stmt = $this->db->prepare("
         UPDATE users 
@@ -175,43 +175,45 @@ class User
         WHERE email = ?
     ");
 
-    // Thêm dòng này để debug (xem có lỗi SQL không)
     $success = $stmt->execute([$code, $expiresAt, $email]);
 
-    // Nếu lỗi → ghi log để biết
     if (!$success) {
-        error_log("Lỗi lưu OTP cho email: $email | Error: " . implode(' | ', $stmt->errorInfo()));
+        error_log("LỖI LƯU OTP: " . implode(' | ', $stmt->errorInfo()));
     }
 
     return $success;
 }
 
-    // Kiểm tra OTP có đúng và còn hạn không
-    public function verifyCode($email, $code)
-    {
-        $stmt = $this->db->prepare("
-            SELECT * FROM users 
-            WHERE email = ? 
-            AND verification_code = ? 
-            AND verification_expires > NOW()
-        ");
-        $stmt->execute([$email, $code]);
-        $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+// Xác minh OTP – sửa lại cho chắc chắn
+public function verifyCode($email, $code)
+{
+    $stmt = $this->db->prepare("
+        SELECT * FROM users 
+        WHERE email = ? 
+          AND verification_code = ? 
+          AND verification_expires > NOW()
+        LIMIT 1
+    ");
+    $stmt->execute([$email, $code]);
+    $user = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-        if ($user) {
-            // XÓA OTP + KÍCH HOẠT TÀI KHOẢN
-            $this->db->prepare("
-                UPDATE users 
-                SET verification_code = NULL, 
-                    verification_expires = NULL, 
-                    is_active = 1 
-                WHERE id = ?
-            ")->execute([$user['id']]);
+    if ($user) {
+        // XÓA OTP + KÍCH HOẠT
+        $this->db->prepare("
+            UPDATE users 
+            SET verification_code = NULL, 
+                verification_expires = NULL, 
+                is_active = 1,
+                email_verified_at = NOW()
+            WHERE id = ?
+        ")->execute([$user['id']]);
 
-            return $user;
-        }
-        return false;
+        // Trả về user đã được kích hoạt
+        return $this->findById($user['id']);
     }
+
+    return false;
+}
 
     // Kiểm tra tài khoản đã xác minh chưa (dùng khi đăng nhập)
     public function isVerified($userId)

@@ -156,7 +156,7 @@
             <div class="col-md-3 col-sm-6">
                 <div class="card">
                     <div class="card-body">
-<h6 class="text-muted small">Tổng doanh thu toàn hệ thống</h6>
+            <h6 class="text-muted small">Tổng doanh thu toàn hệ thống</h6>
 
             <p class="card-text"><?php echo number_format($totalSystemRevenue, 0, ',', '.'); ?> VNĐ</p>
                     </div>
