@@ -22,261 +22,346 @@ class AuthController
         $this->userModel = new User();
         $this->productModel = new Product();
         $this->orderModel = new Order();
+        // $this->emailService không cần khởi tạo ở đây nếu chỉ dùng trong các hàm xử lý
     }
 
     public function register()
-{
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $action = $_POST['action'] ?? '';
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? '';
 
-        // Bước 1: Gửi OTP
-        if ($action === 'send_otp') {
-            $this->handleSendOtp();
-        }
+            // Bước 1: Gửi OTP
+            if ($action === 'send_otp') {
+                $this->handleSendOtp();
+            }
 
-        // Bước 2: Xác minh OTP + Đăng ký
-        if ($action === 'verify_otp') {
-            $this->handleVerifyOtp();
-        }
-    }
-
-    // Hiển thị form đăng ký
-    require_once __DIR__ . '/../Views/auth/register.php';
-}
-  private function handleSendOtp()
-{
-    $username = trim($_POST['username'] ?? '');
-    $email    = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-
-    if (empty($username) || empty($email) || empty($password)) {
-        return $this->jsonResponse(false, 'Vui lòng điền đầy đủ thông tin!');
-    }
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return $this->jsonResponse(false, 'Email không hợp lệ!');
-    }
-    if ($this->userModel->findByEmail($email)) {
-        return $this->jsonResponse(false, 'Email này đã được đăng ký!');
-    }
-    if ($this->userModel->findByUsername($username)) {
-        return $this->jsonResponse(false, 'Tên người dùng đã tồn tại!');
-    }
-
-    // Tạo user tạm
-    if (!$this->userModel->registerUser($username, $email, $password, 0, 'user')) {
-        return $this->jsonResponse(false, 'Đăng ký thất bại! Vui lòng thử lại.');
-    }
-
-    // Tạo và lưu OTP bằng Model (an toàn nhất)
-    $otp = sprintf("%06d", mt_rand(100000, 999999));
-    if (!$this->userModel->setVerificationCode($email, $otp)) {
-        // Nếu lưu OTP lỗi → xóa user
-        $this->userModel->db->prepare("DELETE FROM users WHERE email = ?")->execute([$email]);
-        return $this->jsonResponse(false, 'Lỗi hệ thống khi lưu mã OTP!');
-    }
-
-    // Gửi email
-    $emailService = new \App\Helpers\EmailService();
-    if ($emailService->sendVerificationCode($email, $username, $otp)) {
-        Session::set('pending_verification_email', $email);
-        return $this->jsonResponse(true, 'Đã gửi mã OTP đến email của bạn!', ['step' => 'verify']);
-    } else {
-        $this->userModel->db->prepare("DELETE FROM users WHERE email = ?")->execute([$email]);
-        return $this->jsonResponse(false, 'Không thể gửi email OTP. Vui lòng thử lại!');
-    }
-}
-
-private function handleVerifyOtp()
-{
-    $otp   = trim($_POST['otp'] ?? '');
-    $email = Session::get('pending_verification_email');
-
-    if (empty($otp) || empty($email)) {
-        return $this->jsonResponse(false, 'Dữ liệu không hợp lệ!');
-    }
-
-    // DÙNG MODEL ĐỂ VERIFY → CHUẨN NHẤT!
-    $user = $this->userModel->verifyCode($email, $otp);
-
-    if ($user) {
-        Session::unset('pending_verification_email');
-        Session::set('user', $user);
-
-        $redirect = ($user['role'] === 'partners') ? '/upgrade' : '/';
-
-        return $this->jsonResponse(true, 'Xác minh thành công! Chào mừng bạn!', [
-            'redirect' => $redirect
-        ]);
-    } else {
-        return $this->jsonResponse(false, 'Mã OTP không đúng hoặc đã hết hạn!');
-    }
-}
-    
-private function jsonResponse($success, $message, $extra = [])
-{
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(array_merge([
-        'success' => $success,
-        'message' => $message
-    ], $extra));
-    exit;
-}
-   public function partnerRegister()
-{
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $action = $_POST['action'] ?? '';
-
-        // Bước 1: Gửi OTP
-        if ($action === 'send_otp') {
-            $this->handlePartnerSendOtp();
-        }
-
-        // Bước 2: Xác minh OTP + Hoàn tất đăng ký đối tác
-        if ($action === 'verify_otp') {
-            $this->handlePartnerVerifyOtp();
-        }
-    }
-
-    // Hiển thị form đăng ký đối tác (bước nhập thông tin)
-    require_once __DIR__ . '/../Views/auth/partner_register.php';
-}
-
-/**
- * Xử lý gửi OTP cho đăng ký đối tác
- */
-private function handlePartnerSendOtp()
-{
-    $username = trim($_POST['username'] ?? '');
-    $email    = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-
-    if (empty($username) || empty($email) || empty($password)) {
-        return $this->jsonResponse(false, 'Vui lòng điền đầy đủ thông tin!');
-    }
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return $this->jsonResponse(false, 'Email không hợp lệ!');
-    }
-    if ($this->userModel->findByEmail($email)) {
-        return $this->jsonResponse(false, 'Email này đã được đăng ký!');
-    }
-    if ($this->userModel->findByUsername($username)) {
-        return $this->jsonResponse(false, 'Tên người dùng đã tồn tại!');
-    }
-
-    if (!$this->userModel->registerUser($username, $email, $password, 0, 'partners')) {
-        return $this->jsonResponse(false, 'Đăng ký thất bại!');
-    }
-
-    $otp = sprintf("%06d", mt_rand(100000, 999999));
-    if (!$this->userModel->setVerificationCode($email, $otp)) {
-        $this->userModel->db->prepare("DELETE FROM users WHERE email = ?")->execute([$email]);
-        return $this->jsonResponse(false, 'Lỗi hệ thống!');
-    }
-
-    $emailService = new \App\Helpers\EmailService();
-    if ($emailService->sendVerificationCode($email, $username, $otp)) {
-        Session::set('pending_verification_email', $email);
-        Session::set('pending_partner_registration', true);
-        return $this->jsonResponse(true, 'Đã gửi mã OTP!', ['step' => 'verify']);
-    } else {
-        $this->userModel->db->prepare("DELETE FROM users WHERE email = ?")->execute([$email]);
-        return $this->jsonResponse(false, 'Gửi email thất bại!');
-    }
-}
-/**
- * Xử lý xác minh OTP cho đối tác
- */
-private function handlePartnerVerifyOtp()
-{
-    $otp   = trim($_POST['otp'] ?? '');
-    $email = Session::get('pending_verification_email');
-
-    if (empty($otp) || empty($email)) {
-        return $this->jsonResponse(false, 'Dữ liệu không hợp lệ!');
-    }
-
-    $user = $this->userModel->verifyCode($email, $otp);
-
-    if ($user) {
-        // Xác minh thành công → kích hoạt tài khoản
-        $this->userModel->activateUser($email); // Bạn cần thêm method này trong User model
-
-        Session::unset('pending_verification_email');
-        Session::unset('pending_partner_registration');
-
-        // Gửi thông báo WebSocket (nếu cần)
-        NotificationServer::sendNotification(
-            $user['id'],
-            'auth',
-            [
-                'title' => 'Chào mừng đối tác mới!',
-                'message' => "Chào mừng $user[username]! Vui lòng mua gói nâng cấp để trở thành đối tác chính thức.",
-                'link' => '/upgrade'
-            ]
-        );
-
-        // Đăng nhập luôn cho user
-        Session::set('user', $user);
-
-        $this->jsonResponse(true, 'Đăng ký đối tác thành công! Chào mừng bạn!', [
-            'redirect' => '/upgrade'
-        ]);
-    } else {
-        $this->jsonResponse(false, 'Mã OTP không đúng hoặc đã hết hạn!');
-    }
-}
-
-  public function login()
-{
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $email = $_POST['email'] ?? '';
-        $password = $_POST['password'] ?? '';
-
-        if (empty($email) || empty($password)) {
-            $response = ['success' => false, 'message' => 'Vui lòng nhập đầy đủ thông tin!'];
-        } else {
-            $result = $this->userModel->login($email, $password);
-
-            if ($result === 'not_verified') {
-                $response = [
-                    'success' => false,
-                    'message' => 'Tài khoản chưa được xác minh! Vui lòng kiểm tra email để nhận mã OTP.'
-                ];
-            } elseif ($result === 'locked') {
-                $response = [
-                    'success' => false,
-                    'message' => 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.'
-                ];
-            } elseif ($result) {
-                // ĐĂNG NHẬP THÀNH CÔNG - chỉ khi đã xác minh
-                Session::set('user', $result);
-                $redirect = ($result['role'] === 'partners' && !$result['is_partner_paid']) ? '/upgrade' : '/';
-                $response = [
-                    'success' => true,
-                    'message' => 'Đăng nhập thành công!',
-                    'redirect' => $redirect
-                ];
-            } else {
-                $response = ['success' => false, 'message' => 'Email hoặc mật khẩu không đúng!'];
+            // Bước 2: Xác minh OTP + Đăng ký
+            if ($action === 'verify_otp') {
+                $this->handleVerifyOtp();
             }
         }
 
-        // AJAX response
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
-            header('Content-Type: application/json');
-            echo json_encode($response);
-            exit;
+        // Hiển thị form đăng ký
+        require_once __DIR__ . '/../Views/auth/register.php';
+    }
+    
+    /**
+     * Xử lý gửi OTP cho đăng ký User thường
+     */
+    private function handleSendOtp()
+    {
+        $username = trim($_POST['username'] ?? '');
+        $email    = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $role = 'user';
+
+        if (empty($username) || empty($email) || empty($password)) {
+            return $this->jsonResponse(false, 'Vui lòng điền đầy đủ thông tin!');
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $this->jsonResponse(false, 'Email không hợp lệ!');
+        }
+        
+        // 1. Tìm User theo Email
+        $user = $this->userModel->findByEmail($email);
+        $isNewUser = false; // Cờ theo dõi để xử lý lỗi sau này
+
+        if ($user) {
+            // A. Email đã được đăng ký và kích hoạt
+            if ((int)$user['is_active'] === 1) {
+                return $this->jsonResponse(false, 'Email này đã được đăng ký và kích hoạt!');
+            }
+            
+            // B. User tồn tại nhưng CHƯA kích hoạt (Cho phép gửi lại/cập nhật thông tin)
+            // Cập nhật thông tin (username/password mới nếu người dùng thay đổi)
+            if (!$this->userModel->updatePendingUser($user['id'], $username, $password, $role)) {
+                return $this->jsonResponse(false, 'Lỗi cập nhật thông tin đăng ký dở dang!');
+            }
+
+        } else {
+            // 2. Email chưa tồn tại -> Tạo User mới
+            if ($this->userModel->findByUsername($username)) {
+                return $this->jsonResponse(false, 'Tên người dùng đã tồn tại!');
+            }
+            
+            if (!$this->userModel->registerUser($username, $email, $password, 0, $role)) {
+                return $this->jsonResponse(false, 'Đăng ký thất bại! Vui lòng thử lại.');
+            }
+            
+            // Lấy lại User sau khi tạo để dùng ID/username
+            $user = $this->userModel->findByEmail($email);
+            if (!$user) {
+                return $this->jsonResponse(false, 'Lỗi hệ thống: Không tìm thấy User vừa tạo.');
+            }
+            $isNewUser = true;
         }
 
-        Session::set($response['success'] ? 'success' : 'error', $response['message']);
-        if ($response['success'] ?? false) {
-            header('Location: ' . $response['redirect']);
-            exit;
+        // 3. Tạo và lưu OTP mới
+        $otp = sprintf("%06d", mt_rand(100000, 999999));
+        if (!$this->userModel->setVerificationCode($email, $otp)) {
+            // Logic xóa user chỉ áp dụng nếu User là MỚI và lỗi DB
+            if ($isNewUser) {
+                $this->userModel->db->prepare("DELETE FROM users WHERE email = ?")->execute([$email]);
+            }
+            return $this->jsonResponse(false, 'Lỗi hệ thống khi lưu mã OTP!');
+        }
+
+        // 4. Gửi email
+        $emailService = new \App\Helpers\EmailService();
+        if ($emailService->sendVerificationCode($email, $user['username'], $otp)) {
+            Session::set('pending_verification_email', $email);
+            return $this->jsonResponse(true, 'Đã gửi mã OTP đến email của bạn!', ['step' => 'verify']);
+        } else {
+     
+            return $this->jsonResponse(false, 'Không thể gửi email OTP. Vui lòng thử lại!');
         }
     }
 
-    require_once __DIR__ . '/../Views/auth/login.php';
+    /**
+     * Xử lý xác minh OTP cho User thường
+     */
+    private function handleVerifyOtp()
+    {
+        $otp   = trim($_POST['otp'] ?? '');
+        $email = Session::get('pending_verification_email');
+
+        if (empty($otp) || empty($email)) {
+             // Thêm unset session nếu hết phiên
+            Session::unset('pending_verification_email');
+            return $this->jsonResponse(false, 'Dữ liệu không hợp lệ hoặc đã hết phiên!');
+        }
+
+        // DÙNG MODEL ĐỂ VERIFY -> Kích hoạt User + Clear OTP trong DB
+        $user = $this->userModel->verifyCode($email, $otp);
+
+        if ($user) {
+            Session::unset('pending_verification_email');
+            Session::set('user', $user); // Đăng nhập
+            if (class_exists(NotificationServer::class) && $user['role'] === 'user') {
+    NotificationServer::sendNotification(
+        $user['id'],
+        'auth',
+        [
+            'title' => 'Chào mừng!',
+            'message' => "Chào mừng {$user['username']} đến với hệ thống!",
+            'link' => '/'
+        ]
+    );
 }
+            $redirect = ($user['role'] === 'partners') ? '/upgrade' : '/';
+
+            return $this->jsonResponse(true, 'Xác minh thành công! Chào mừng bạn!', [
+                'redirect' => $redirect
+            ]);
+        } else {
+            // Khi OTP sai, KHÔNG unset session để user có thể thử lại
+            return $this->jsonResponse(false, 'Mã OTP không đúng hoặc đã hết hạn!');
+        }
+    }
+    
+    /**
+     * Hàm response JSON
+     */
+    private function jsonResponse($success, $message, $extra = [])
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(array_merge([
+            'success' => $success,
+            'message' => $message
+        ], $extra));
+        exit;
+    }
+    
+    public function partnerRegister()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? '';
+
+            // Bước 1: Gửi OTP
+            if ($action === 'send_otp') {
+                $this->handlePartnerSendOtp();
+            }
+
+            // Bước 2: Xác minh OTP + Hoàn tất đăng ký đối tác
+            if ($action === 'verify_otp') {
+                $this->handlePartnerVerifyOtp();
+            }
+        }
+
+        // Hiển thị form đăng ký đối tác (bước nhập thông tin)
+        require_once __DIR__ . '/../Views/auth/partner_register.php';
+    }
+
+    /**
+     * Xử lý gửi OTP cho đăng ký đối tác
+     */
+    private function handlePartnerSendOtp()
+    {
+        $username = trim($_POST['username'] ?? '');
+        $email    = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $role = 'partners';
+
+        if (empty($username) || empty($email) || empty($password)) {
+            return $this->jsonResponse(false, 'Vui lòng điền đầy đủ thông tin!');
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $this->jsonResponse(false, 'Email không hợp lệ!');
+        }
+        
+        $user = $this->userModel->findByEmail($email);
+        $isNewUser = false;
+
+        if ($user) {
+            // A. Email đã được đăng ký và kích hoạt
+            if ((int)$user['is_active'] === 1) {
+                 return $this->jsonResponse(false, 'Email này đã được đăng ký và kích hoạt!');
+            }
+            
+            // B. User tồn tại nhưng CHƯA kích hoạt (Cho phép gửi lại/cập nhật thông tin)
+            // Cập nhật thông tin (username/password/role mới)
+            if (!$this->userModel->updatePendingUser($user['id'], $username, $password, $role)) {
+                return $this->jsonResponse(false, 'Lỗi cập nhật thông tin đăng ký dở dang!');
+            }
+
+        } else {
+            // 2. Email chưa tồn tại -> Tạo User mới
+            if ($this->userModel->findByUsername($username)) {
+                return $this->jsonResponse(false, 'Tên người dùng đã tồn tại!');
+            }
+            
+            if (!$this->userModel->registerUser($username, $email, $password, 0, $role)) {
+                return $this->jsonResponse(false, 'Đăng ký thất bại! Vui lòng thử lại.');
+            }
+            
+            $user = $this->userModel->findByEmail($email);
+            if (!$user) {
+                return $this->jsonResponse(false, 'Lỗi hệ thống: Không tìm thấy User vừa tạo.');
+            }
+            $isNewUser = true;
+        }
+
+        // 3. Tạo và lưu OTP mới
+        $otp = sprintf("%06d", mt_rand(100000, 999999));
+        if (!$this->userModel->setVerificationCode($email, $otp)) {
+            // Logic xóa user chỉ áp dụng nếu User là MỚI và lỗi DB
+            if ($isNewUser) {
+                $this->userModel->db->prepare("DELETE FROM users WHERE email = ?")->execute([$email]);
+            }
+            return $this->jsonResponse(false, 'Lỗi hệ thống khi lưu mã OTP!');
+        }
+
+        // 4. Gửi email
+        $emailService = new \App\Helpers\EmailService();
+        if ($emailService->sendVerificationCode($email, $user['username'], $otp)) {
+            Session::set('pending_verification_email', $email);
+            Session::set('pending_partner_registration', true);
+            return $this->jsonResponse(true, 'Đã gửi mã OTP!', ['step' => 'verify']);
+        } else {
+            // Nếu gửi email lỗi, KHÔNG xóa User
+            return $this->jsonResponse(false, 'Gửi email thất bại!');
+        }
+    }
+    
+    /**
+     * Xử lý xác minh OTP cho đối tác
+     */
+    private function handlePartnerVerifyOtp()
+    {
+        $otp   = trim($_POST['otp'] ?? '');
+        $email = Session::get('pending_verification_email');
+
+        if (empty($otp) || empty($email)) {
+             // Thêm unset session nếu hết phiên
+            Session::unset('pending_verification_email');
+            Session::unset('pending_partner_registration');
+            return $this->jsonResponse(false, 'Dữ liệu không hợp lệ hoặc đã hết phiên!');
+        }
+
+        $user = $this->userModel->verifyCode($email, $otp);
+
+        if ($user) {
+            // Đăng nhập luôn cho user (BẮT BUỘC ĐI ĐẦU)
+            Session::set('user', $user);
+            
+            // Hủy session
+            Session::unset('pending_verification_email');
+            Session::unset('pending_partner_registration');
+
+            // Gửi thông báo WebSocket (Đảm bảo class tồn tại)
+            if (class_exists(NotificationServer::class)) {
+                NotificationServer::sendNotification(
+                    $user['id'],
+                    'auth',
+                    [
+                        'title' => 'Chào mừng đối tác mới!',
+                        'message' => "Chào mừng {$user['username']}! Vui lòng mua gói nâng cấp để trở thành đối tác chính thức.",
+                        'link' => '/upgrade'
+                    ]
+                );
+            }
+
+            // activateUser không cần thiết vì đã có trong verifyCode
+            $this->jsonResponse(true, 'Đăng ký đối tác thành công! Chào mừng bạn!', [
+                'redirect' => '/upgrade'
+            ]);
+        } else {
+            $this->jsonResponse(false, 'Mã OTP không đúng hoặc đã hết hạn!');
+        }
+    }
+
+    // ... (Các hàm login, googleLogin, logout, changePassword, forgotPassword, resetPassword, profile giữ nguyên)
+    public function login()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $email = $_POST['email'] ?? '';
+            $password = $_POST['password'] ?? '';
+
+            if (empty($email) || empty($password)) {
+                $response = ['success' => false, 'message' => 'Vui lòng nhập đầy đủ thông tin!'];
+            } else {
+                $result = $this->userModel->login($email, $password);
+
+                if ($result === 'not_verified') {
+                    $response = [
+                        'success' => false,
+                        'message' => 'Tài khoản chưa được xác minh! Vui lòng kiểm tra email để nhận mã OTP.'
+                    ];
+                } elseif ($result === 'locked') {
+                    $response = [
+                        'success' => false,
+                        'message' => 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.'
+                    ];
+                } elseif ($result) {
+                    // ĐĂNG NHẬP THÀNH CÔNG - chỉ khi đã xác minh
+                    Session::set('user', $result);
+                    $redirect = ($result['role'] === 'partners' && !$result['is_partner_paid']) ? '/upgrade' : '/';
+                    $response = [
+                        'success' => true,
+                        'message' => 'Đăng nhập thành công!',
+                        'redirect' => $redirect
+                    ];
+                } else {
+                    $response = ['success' => false, 'message' => 'Email hoặc mật khẩu không đúng!'];
+                }
+            }
+
+            // AJAX response
+            if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+                header('Content-Type: application/json');
+                echo json_encode($response);
+                exit;
+            }
+
+            Session::set($response['success'] ? 'success' : 'error', $response['message']);
+            if ($response['success'] ?? false) {
+                header('Location: ' . $response['redirect']);
+                exit;
+            }
+        }
+
+        require_once __DIR__ . '/../Views/auth/login.php';
+    }
 
     public function googleLogin()
     {
@@ -387,37 +472,40 @@ private function handlePartnerVerifyOtp()
 
     public function forgotPassword()
     {
-        $email = $_POST['email'] ?? '';
-        if (empty($email)) {
-            $response = ['success' => false, 'message' => 'Vui lòng nhập email!'];
-        } else {
-            $user = $this->userModel->findByEmail($email);
-            if ($user) {
-                $token = bin2hex(random_bytes(32));
-                if ($this->userModel->saveResetToken($user['id'], $token)) {
-                    $mail = new \PHPMailer\PHPMailer\PHPMailer();
-                    $mail->isSMTP();
-                    $mail->Host = 'smtp.gmail.com';
-                    $mail->SMTPAuth = true;
-                    $mail->Username = 'vanhieu12b6@gmail.com';
-                    $mail->Password = 'rucjmrzvstrhkuuq';
-                    $mail->SMTPSecure = 'tls';
-                    $mail->Port = 587;
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $email = $_POST['email'] ?? '';
+            if (empty($email)) {
+                $response = ['success' => false, 'message' => 'Vui lòng nhập email!'];
+            } else {
+                $user = $this->userModel->findByEmail($email);
+                if ($user) {
+                    $token = bin2hex(random_bytes(32));
+                    if ($this->userModel->saveResetToken($user['id'], $token)) {
+                        // Khởi tạo PHPMailer (nên dùng EmailService)
+                        $mail = new \PHPMailer\PHPMailer\PHPMailer();
+                        $mail->isSMTP();
+                        $mail->Host = 'smtp.gmail.com';
+                        $mail->SMTPAuth = true;
+                        $mail->Username = 'vanhieu12b6@gmail.com';
+                        $mail->Password = 'rucjmrzvstrhkuuq';
+                        $mail->SMTPSecure = 'tls';
+                        $mail->Port = 587;
 
-                    $mail->setFrom('no-reply@c2c.com', 'Chợ C2C');
-                    $mail->addAddress($email);
-                    $mail->Subject = 'Đặt lại mật khẩu';
-                    $mail->Body = "Click để đặt lại mật khẩu: " . $_ENV['APP_URL'] . "/reset-password?token=$token";
-                    if ($mail->send()) {
-                        $response = ['success' => true, 'message' => 'Link đặt lại mật khẩu đã được gửi!'];
+                        $mail->setFrom('no-reply@c2c.com', 'Chợ C2C');
+                        $mail->addAddress($email);
+                        $mail->Subject = 'Đặt lại mật khẩu';
+                        $mail->Body = "Click để đặt lại mật khẩu: " . $_ENV['APP_URL'] . "/reset-password?token=$token";
+                        if ($mail->send()) {
+                            $response = ['success' => true, 'message' => 'Link đặt lại mật khẩu đã được gửi!'];
+                        } else {
+                            $response = ['success' => false, 'message' => 'Gửi email thất bại!'];
+                        }
                     } else {
-                        $response = ['success' => false, 'message' => 'Gửi email thất bại!'];
+                        $response = ['success' => false, 'message' => 'Lưu token thất bại!'];
                     }
                 } else {
-                    $response = ['success' => false, 'message' => 'Lưu token thất bại!'];
+                    $response = ['success' => false, 'message' => 'Email không tồn tại!'];
                 }
-            } else {
-                $response = ['success' => false, 'message' => 'Email không tồn tại!'];
             }
 
             if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {

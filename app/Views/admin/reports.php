@@ -161,32 +161,30 @@
                         }).then((result) => {
                             if (result.isConfirmed) {
                                 fetch(`/admin/reports/delete/${reportId}`, {
-                                        method: 'POST',
-                                        headers: {
-                                            'X-Requested-With': 'XMLHttpRequest'
-                                        }
-                                    })
-                                    .then(response => response.json())
-                                    .then(data => {
-                                        Swal.fire({
-                                            icon: data.success ? 'success' : 'error',
-                                            title: data.success ? 'Thành công' : 'Lỗi',
-                                            text: data.message,
-                                            confirmButtonText: 'OK'
-                                        }).then(() => {
-                                            if (data.success) {
-                                                window.location.reload();
-                                            }
-                                        });
-                                    })
-                                    .catch(error => {
-                                        Swal.fire({
-                                            icon: 'error',
-                                            title: 'Lỗi',
-                                            text: 'Đã xảy ra lỗi khi xóa báo cáo!',
-                                            confirmButtonText: 'OK'
-                                        });
-                                    });
+    method: 'POST',
+    headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/json'
+    }
+})
+.then(response => {
+    if (!response.ok) throw new Error('Network error');
+    return response.json();
+})
+.then(data => {
+    Swal.fire({
+        icon: data.success ? 'success' : 'error',
+        title: data.success ? 'Thành công' : 'Lỗi',
+        text: data.message,
+    }).then(() => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+})
+.catch(() => {
+    Swal.fire('Lỗi', 'Không thể kết nối đến server!', 'error');
+});
                             }
                         });
                     });

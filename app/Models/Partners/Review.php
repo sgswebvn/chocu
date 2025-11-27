@@ -33,15 +33,31 @@ class Review
         }
     }
 
-    public function createSellerReview($sellerId, $buyerId, $rating, $comment)
+  public function createSellerReview($sellerId, $buyerId, $rating, $comment)
     {
         try {
+            // Kiểm tra xem người mua đã đánh giá shop này chưa (Dựa trên UNIQUE KEY: seller_id, buyer_id)
+            $stmt = $this->db->prepare("SELECT id FROM seller_ratings WHERE seller_id = ? AND buyer_id = ?");
+            $stmt->execute([$sellerId, $buyerId]);
+            if ($stmt->fetch()) {
+                error_log("Seller Review failed: Buyer ID $buyerId already rated seller ID $sellerId.");
+                return false; // Đã đánh giá rồi
+            }
+
+            // Giả định order_id = 0 cho đánh giá tổng quát. Cần cho phép NULL hoặc DEFAULT 0 trong DB
+            $orderIdPlaceholder = 0; 
+            
             $stmt = $this->db->prepare("
-                INSERT INTO seller_ratings (seller_id, buyer_id, rating, comment, created_at)
-                VALUES (?, ?, ?, ?, NOW())
+                INSERT INTO seller_ratings (order_id, seller_id, buyer_id, rating, comment, created_at)
+                VALUES (?, ?, ?, ?, ?, NOW())
             ");
-            $result = $stmt->execute([$sellerId, $buyerId, $rating, $comment]);
-            error_log("Created seller review for seller ID: $sellerId by buyer ID: $buyerId");
+            $result = $stmt->execute([$orderIdPlaceholder, $sellerId, $buyerId, $rating, $comment]);
+            
+            if ($result) {
+                 error_log("Created seller review for seller ID: $sellerId by buyer ID: $buyerId");
+            } else {
+                 error_log("Failed to create seller review (DB execution error).");
+            }
             return $result;
         } catch (\PDOException $e) {
             error_log("Error creating seller review: " . $e->getMessage());

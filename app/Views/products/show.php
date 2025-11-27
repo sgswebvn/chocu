@@ -68,9 +68,11 @@ include __DIR__ . '/./linkcss.php';
                                         <span><strong>Sản phẩm:</strong> <?php echo $userModel->countAllByUser($product['user_id']); ?></span>
                                     </div>
                                     <div class="mt-2">
-                                        <a href="/chat/<?= $product['id'] ?>/<?= $product['user_id'] ?>" class="btn btn-info btn-sm fw-semibold me-2">
-                                            <i class="bi bi-chat-dots me-1"></i> Chat với người bán
-                                        </a>
+                                       <?php if (!$currentUserId || $product['user_id'] != $currentUserId): ?>
+        <a href="/chat/<?= $product['id'] ?>/<?= $product['user_id'] ?>" class="btn btn-info btn-sm fw-semibold me-2">
+            <i class="bi bi-chat-dots me-1"></i> Chat với người bán
+        </a>
+    <?php endif; ?>
                                         <a href="/store/<?= $product['user_id'] ?>" class="btn btn-outline-primary btn-sm fw-semibold">
                                             <i class="bi bi-shop me-1"></i> Xem gian hàng
                                         </a>

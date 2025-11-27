@@ -38,12 +38,12 @@ class PReviewController
         error_log("PReviewController: Loaded " . count($reviews) . " reviews for user ID: {$user['id']}");
         require_once __DIR__ . '/../../Views/a-partner/review/index.php';
     }
+    
 
     public function reply($id)
     {
         error_log("PReviewController: Processing reply request for review ID: $id");
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            error_log("PReviewController: Invalid request method");
             Session::set('error', 'Yêu cầu không hợp lệ!');
             header('Location: /partners/review');
             exit;
@@ -53,24 +53,21 @@ class PReviewController
         $reply = trim($_POST['reply'] ?? '');
 
         if (!$id || !$reply) {
-            error_log("PReviewController: Missing review_id or reply for user ID: {$user['id']}, review_id: $id, reply: " . ($reply ?? 'empty'));
             Session::set('error', 'Vui lòng điền đầy đủ thông tin!');
             header('Location: /partners/review');
             exit;
         }
 
         // Kiểm tra review có thuộc shop không
-        $stmt = $this->reviewModel->db->prepare("SELECT id, reply FROM sellerRating WHERE id = ? AND seller_id = ?");
+        $stmt = $this->reviewModel->db->prepare("SELECT id, reply FROM seller_ratings WHERE id = ? AND seller_id = ?");
         $stmt->execute([$id, $user['id']]);
         $review = $stmt->fetch(\PDO::FETCH_ASSOC);
         if (!$review) {
-            error_log("PReviewController: Review ID $id not found for seller ID: {$user['id']}");
             Session::set('error', 'Đánh giá không tồn tại hoặc không thuộc shop này!');
             header('Location: /partners/review');
             exit;
         }
         if ($review['reply']) {
-            error_log("PReviewController: Review ID $id already has a reply for seller ID: {$user['id']}");
             Session::set('error', 'Đánh giá này đã được trả lời!');
             header('Location: /partners/review');
             exit;

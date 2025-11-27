@@ -87,21 +87,21 @@ class Product
         return $stmt->fetch(\PDO::FETCH_ASSOC);
     }
 
-    public function create($userId, $sellerId, $title, $description, $price, $quantity, $image, $categoryId)
+    public function create($userId, $sellerId, $title, $description, $price,  $image, $categoryId)
     {
-        $stmt = $this->db->prepare("INSERT INTO products (user_id, seller_id, category_id, title, description, price, quantity, image, status) 
+        $stmt = $this->db->prepare("INSERT INTO products (user_id, seller_id, category_id, title, description, price,  image, status) 
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved')");
-        return $stmt->execute([$userId, $sellerId, $categoryId, $title, $description, $price, $quantity, $image]);
+        return $stmt->execute([$userId, $sellerId, $categoryId, $title, $description, $price,  $image]);
     }
 
-    public function update($id, $title, $description, $price, $quantity, $image, $categoryId)
+    public function update($id, $title, $description, $price,  $image, $categoryId)
     {
         if ($image) {
-            $stmt = $this->db->prepare("UPDATE products SET category_id = ?, title = ?, description = ?, price = ?, quantity = ?, image = ?, status = 'approved' WHERE id = ?");
-            return $stmt->execute([$categoryId, $title, $description, $price, $quantity, $image, $id]);
+            $stmt = $this->db->prepare("UPDATE products SET category_id = ?, title = ?, description = ?, price = ?,  image = ?, status = 'approved' WHERE id = ?");
+            return $stmt->execute([$categoryId, $title, $description, $price,  $image, $id]);
         } else {
-            $stmt = $this->db->prepare("UPDATE products SET category_id = ?, title = ?, description = ?, price = ?, quantity = ?, status = 'approved' WHERE id = ?");
-            return $stmt->execute([$categoryId, $title, $description, $price, $quantity, $id]);
+            $stmt = $this->db->prepare("UPDATE products SET category_id = ?, title = ?, description = ?, price = ?,  status = 'approved' WHERE id = ?");
+            return $stmt->execute([$categoryId, $title, $description, $price,  $id]);
         }
     }
 

@@ -255,15 +255,47 @@ $totalSystemRevenue = $this->adminModel->getTotalSystemRevenue();
     public function deleteReport($id)
     {
         try {
-            if ($this->adminModel->deleteReport($id)) {
-                Session::set('success', 'Xóa báo cáo thành công!');
+        $deleted = $this->adminModel->deleteReport($id);
+
+        // Nếu là request AJAX (từ SweetAlert)
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            
+            if ($deleted) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Xóa báo cáo thành công!'
+                ]);
             } else {
-                Session::set('error', 'Xóa báo cáo thất bại!');
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Không tìm thấy báo cáo hoặc đã bị xóa!'
+                ]);
             }
-        } catch (\Exception $e) {
-            Session::set('error', 'Lỗi: ' . $e->getMessage());
+            exit;
         }
-        $this->redirect('/admin/reports');
+
+        // Nếu truy cập trực tiếp link (GET)
+        if ($deleted) {
+            Session::set('success', 'Xóa báo cáo thành công!');
+        } else {
+            Session::set('error', 'Xóa báo cáo thất bại hoặc báo cáo không tồn tại!');
+        }
+
+    } catch (\Exception $e) {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Lỗi hệ thống: ' . $e->getMessage()
+            ]);
+            exit;
+        }
+        Session::set('error', 'Lỗi: ' . $e->getMessage());
+    }
+
+    // Chỉ redirect khi không phải AJAX
+    $this->redirect('/admin/reports');
     }
     public function contacts()
     {
